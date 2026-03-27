@@ -1,7 +1,7 @@
-# ccLobby
+# OpenLobby
 
 ## Overview
-ccLobby is a Web application for unified Agentic CLI session management.
+OpenLobby is a Web application for unified Agentic CLI session management.
 Users can manage multiple AI coding agent sessions (Claude Code, Codex CLI) through an IM-style interface.
 
 ## Tech Stack
@@ -36,6 +36,6 @@ Users can manage multiple AI coding agent sessions (Claude Code, Codex CLI) thro
 ## Common Commands
 - `pnpm install` — Install dependencies
 - `pnpm -r build` — Build all packages
-- `pnpm --filter @cclobby/server dev` — Start backend dev server
-- `pnpm --filter @cclobby/web dev` — Start frontend dev server
+- `pnpm --filter @openlobby/server dev` — Start backend dev server
+- `pnpm --filter @openlobby/web dev` — Start frontend dev server
 - `pnpm build:cli` — Build CLI distribution package

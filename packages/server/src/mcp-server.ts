@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * ccLobby MCP Server — stdio entry point.
+ * OpenLobby MCP Server — stdio entry point.
  *
  * Spawned by CLI (e.g. Claude Code) as an MCP server process.
  * Exposes session management operations as MCP tools.
@@ -12,7 +12,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-const LOBBY_API = process.env.CCLOBBY_API ?? process.env.AGENT_LOBBY_API ?? 'http://127.0.0.1:3002';
+const LOBBY_API = process.env.OPENLOBBY_API ?? process.env.AGENT_LOBBY_API ?? 'http://127.0.0.1:3002';
 
 async function apiCall(
   method: string,
@@ -42,14 +42,14 @@ function textResult(data: unknown): { content: Array<{ type: 'text'; text: strin
 
 async function main() {
   const server = new McpServer({
-    name: 'cclobby',
+    name: 'openlobby',
     version: '0.2.0',
   });
 
   // --- Tool: lobby_list_sessions ---
   server.tool(
     'lobby_list_sessions',
-    'List all ccLobby managed sessions with their status, adapter, and working directory',
+    'List all OpenLobby managed sessions with their status, adapter, and working directory',
     {},
     async () => {
       const sessions = await apiCall('GET', '/api/sessions');
@@ -160,7 +160,7 @@ async function main() {
   // --- Tool: lobby_import_session ---
   server.tool(
     'lobby_import_session',
-    'Import a discovered CLI session into ccLobby management',
+    'Import a discovered CLI session into OpenLobby management',
     {
       sessionId: z.string().describe('Session ID to import'),
       adapterName: z.enum(['claude-code', 'codex-cli']).describe('Adapter that owns the session'),

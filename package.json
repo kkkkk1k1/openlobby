@@ -1,12 +1,12 @@
 {
-  "name": "cclobby",
+  "name": "openlobby",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
-    "build:cli": "pnpm --filter cclobby build",
+    "build:cli": "pnpm --filter openlobby build",
     "prepublish:cli": "pnpm build:cli",
     "publish:cli": "pnpm build:cli && cd packages/cli && npm publish"
   },

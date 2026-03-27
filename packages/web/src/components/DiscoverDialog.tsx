@@ -74,7 +74,7 @@ export default function DiscoverDialog({ onClose }: Props) {
               Discover CLI Sessions
             </h2>
             <p className="text-xs text-gray-400 mt-0.5">
-              Found {discoveredSessions.length} session{discoveredSessions.length !== 1 ? 's' : ''} not yet managed by ccLobby
+              Found {discoveredSessions.length} session{discoveredSessions.length !== 1 ? 's' : ''} not yet managed by OpenLobby
             </p>
           </div>
           <button

@@ -14,7 +14,7 @@ importers:
         specifier: ^11.0.0
         version: 11.10.0
     devDependencies:
-      '@cclobby/server':
+      '@openlobby/server':
         specifier: workspace:*
         version: link:../server
       esbuild:
@@ -39,9 +39,6 @@ importers:
 
   packages/server:
     dependencies:
-      '@cclobby/core':
-        specifier: workspace:*
-        version: link:../core
       '@fastify/multipart':
         specifier: ^9.0.0
         version: 9.4.0
@@ -54,6 +51,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.28.0
         version: 1.28.0(zod@4.3.6)
+      '@openlobby/core':
+        specifier: workspace:*
+        version: link:../core
       '@wecom/aibot-node-sdk':
         specifier: ^1.0.4
         version: 1.0.4

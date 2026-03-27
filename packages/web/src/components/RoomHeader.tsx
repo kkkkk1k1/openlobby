@@ -173,10 +173,10 @@ export default function RoomHeader() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-xl w-96 border border-gray-600 shadow-2xl p-5">
             <h3 className="text-sm font-semibold text-gray-100 mb-2">
-              Remove session from ccLobby?
+              Remove session from OpenLobby?
             </h3>
             <p className="text-xs text-gray-400 mb-1">
-              This will stop the running process (if any) and remove this session from ccLobby's management.
+              This will stop the running process (if any) and remove this session from OpenLobby's management.
             </p>
             <p className="text-xs text-gray-400 mb-4">
               CLI session data (JSONL history) will <span className="text-gray-200 font-medium">not</span> be deleted. You can still resume it from the terminal or re-import it via Discover.

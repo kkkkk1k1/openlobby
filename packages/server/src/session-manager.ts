@@ -5,7 +5,7 @@ import type {
   LobbyMessage,
   SessionSummary,
   ControlDecision,
-} from '@cclobby/core';
+} from '@openlobby/core';
 import type Database from 'better-sqlite3';
 import {
   upsertSession,

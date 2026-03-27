@@ -1,10 +1,10 @@
 {
-  "name": "cclobby",
+  "name": "openlobby",
   "version": "0.2.0",
-  "description": "ccLobby — Unified session manager for AI coding agents (Claude Code, Codex CLI) with an IM-style web UI",
+  "description": "OpenLobby — Unified session manager for AI coding agents (Claude Code, Codex CLI) with an IM-style web UI",
   "type": "module",
   "bin": {
-    "cclobby": "./dist/bin.js"
+    "openlobby": "./dist/bin.js"
   },
   "files": [
     "dist/bin.js",
@@ -17,7 +17,7 @@
     "better-sqlite3": "^11.0.0"
   },
   "devDependencies": {
-    "@cclobby/server": "workspace:*",
+    "@openlobby/server": "workspace:*",
     "esbuild": "^0.25.0",
     "typescript": "^5.7.0"
   },
@@ -31,16 +31,16 @@
     "codex",
     "cli",
     "session-manager",
-    "cclobby"
+    "openlobby"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kkkkk1k1/cclobby.git",
+    "url": "git+https://github.com/kkkkk1k1/openlobby.git",
     "directory": "packages/cli"
   },
-  "homepage": "https://github.com/kkkkk1k1/cclobby#readme",
+  "homepage": "https://github.com/kkkkk1k1/openlobby#readme",
   "bugs": {
-    "url": "https://github.com/kkkkk1k1/cclobby/issues"
+    "url": "https://github.com/kkkkk1k1/openlobby/issues"
   }
 }

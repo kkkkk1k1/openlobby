@@ -1,17 +1,17 @@
-# ccLobby -- Architecture Design Document
+# OpenLobby -- Architecture Design Document
 
 > Agentic CLI Unified Session Manager: manage your AI coding agent sessions like an IM app
 
 ## 1. Project Overview
 
-ccLobby is a web-based Agentic CLI session management tool. Users can manage multiple Agentic CLI sessions (Claude Code, Codex CLI, etc.) simultaneously in an IM (instant messaging)-style interface, quickly switch between sessions via a dashboard, chat in real time, and rely on a built-in Lobby Manager to manage sessions and route tasks. Additionally, ccLobby supports connecting IM channels (such as WeCom) so users can interact with coding agents from their phones.
+OpenLobby is a web-based Agentic CLI session management tool. Users can manage multiple Agentic CLI sessions (Claude Code, Codex CLI, etc.) simultaneously in an IM (instant messaging)-style interface, quickly switch between sessions via a dashboard, chat in real time, and rely on a built-in Lobby Manager to manage sessions and route tasks. Additionally, OpenLobby supports connecting IM channels (such as WeCom) so users can interact with coding agents from their phones.
 
 ### Core Metaphors
 
 - **Lobby**: The dashboard interface -- see all active sessions at a glance
 - **Room**: Each session is a room -- step in and start chatting
 - **Lobby Manager**: A built-in meta-agent that only manages and routes sessions, never performs actual tasks
-- **Channel**: The integration layer for external IM platforms, bridging messages from WeCom and others into ccLobby sessions
+- **Channel**: The integration layer for external IM platforms, bridging messages from WeCom and others into OpenLobby sessions
 
 ---
 
@@ -26,7 +26,7 @@ ccLobby is a web-based Agentic CLI session management tool. Users can manage mul
 | CLI Integration | SDK + app-server | Claude Code: `@anthropic-ai/claude-agent-sdk`; Codex CLI: `codex app-server` subprocess + JSON-RPC |
 | Persistence | SQLite (better-sqlite3) | Session index + channel provider config + channel bindings |
 | Build | Vite (frontend) + tsx (backend) | |
-| Package Manager | pnpm workspace | Monorepo, scoped packages `@cclobby/*` |
+| Package Manager | pnpm workspace | Monorepo, scoped packages `@openlobby/*` |
 
 ---
 
@@ -129,7 +129,7 @@ Both approaches share session files and authentication credentials with the term
 #### AgentAdapter Interface
 
 ```typescript
-// @cclobby/core — packages/core/src/types.ts
+// @openlobby/core — packages/core/src/types.ts
 
 interface AgentAdapter {
   readonly name: string;           // 'claude-code' | 'codex-cli'
@@ -181,7 +181,7 @@ interface SpawnOptions {
 }
 ```
 
-`mcpServers` is used for Lobby Manager to inject the ccLobby MCP Server; `apiKey` is used to inject `ANTHROPIC_AUTH_TOKEN` (supporting multi-tenant scenarios).
+`mcpServers` is used for Lobby Manager to inject the OpenLobby MCP Server; `apiKey` is used to inject `ANTHROPIC_AUTH_TOKEN` (supporting multi-tenant scenarios).
 
 ### 4.2 Claude Code Adapter
 
@@ -224,7 +224,7 @@ Integration details:
 
 ### 4.4 Session Manager
 
-SessionManager is the core of the ccLobby backend, managing the lifecycle of all active sessions.
+SessionManager is the core of the OpenLobby backend, managing the lifecycle of all active sessions.
 
 ```typescript
 // packages/server/src/session-manager.ts
@@ -258,7 +258,7 @@ Key responsibilities:
 
 ### 4.5 WebSocket Communication Protocol
 
-Frontend and backend communicate via WebSocket using JSON messages. The complete protocol is defined in `protocol.ts` within `@cclobby/core`.
+Frontend and backend communicate via WebSocket using JSON messages. The complete protocol is defined in `protocol.ts` within `@openlobby/core`.
 
 #### Frontend -> Backend (ClientMessage)
 
@@ -327,10 +327,10 @@ interface LobbyMessage {
 }
 ```
 
-ccLobby does not store message history -- it only reads the CLI native JSONL files. The sole source of truth for message history is the JSONL written by the CLI itself. This means:
-1. Messages seen in ccLobby = what `claude --resume` / `codex resume` shows, with zero discrepancy
-2. Users can close ccLobby at any time and return to the terminal to continue working without losing any context
-3. There will never be messages that "exist in ccLobby but not in the terminal"
+OpenLobby does not store message history -- it only reads the CLI native JSONL files. The sole source of truth for message history is the JSONL written by the CLI itself. This means:
+1. Messages seen in OpenLobby = what `claude --resume` / `codex resume` shows, with zero discrepancy
+2. Users can close OpenLobby at any time and return to the terminal to continue working without losing any context
+3. There will never be messages that "exist in OpenLobby but not in the terminal"
 
 When the Adapter cannot read history from disk (e.g., the session file has not been flushed yet), SessionManager's `messageCache` provides a fallback.
 
@@ -338,7 +338,7 @@ When the Adapter cannot read history from disk (e.g., the session file has not b
 
 ## 5. Lobby Manager
 
-Lobby Manager (LM) is ccLobby's built-in meta-agent. It **is itself a standard CLI session** (origin: `'lobby-manager'`), managed through SessionManager, sharing the same message stream and UI as regular sessions.
+Lobby Manager (LM) is OpenLobby's built-in meta-agent. It **is itself a standard CLI session** (origin: `'lobby-manager'`), managed through SessionManager, sharing the same message stream and UI as regular sessions.
 
 ### Design Philosophy
 
@@ -380,13 +380,13 @@ Startup flow:
 3. If restoration fails, create a new session with injected:
    - system prompt: strictly limited to session router role
    - `permissionMode: 'dontAsk'`: LM does not need approval
-   - `allowedTools`: only `mcp__cclobby__lobby_*` series tools allowed
-   - `mcpServers`: inject ccLobby MCP Server, providing `lobby_*` tools
+   - `allowedTools`: only `mcp__openlobby__lobby_*` series tools allowed
+   - `mcpServers`: inject OpenLobby MCP Server, providing `lobby_*` tools
 4. Listen for `session.updated` events to track session ID changes (UUID -> real CLI session ID)
 
 ### MCP Server
 
-ccLobby exposes a stdio-mode MCP Server (`packages/server/src/mcp-server.ts`) that registers session management operations as standard MCP tools:
+OpenLobby exposes a stdio-mode MCP Server (`packages/server/src/mcp-server.ts`) that registers session management operations as standard MCP tools:
 
 | Tool | Purpose |
 |------|---------|
@@ -400,7 +400,7 @@ ccLobby exposes a stdio-mode MCP Server (`packages/server/src/mcp-server.ts`) th
 | `lobby_import_session` | Import a discovered session |
 | `lobby_navigate_session` | Navigate UI to a specific session |
 
-The MCP Server communicates with the ccLobby backend via the MCP Internal API (default port 3002). This API is REST-style -- the MCP Server runs as a stdio process spawned by the CLI, calling the backend via HTTP.
+The MCP Server communicates with the OpenLobby backend via the MCP Internal API (default port 3002). This API is REST-style -- the MCP Server runs as a stdio process spawned by the CLI, calling the backend via HTTP.
 
 MCP tools are not limited to LM usage -- users in any terminal coding session can also call them (e.g., "show me the status of other sessions").
 
@@ -408,7 +408,7 @@ MCP tools are not limited to LM usage -- users in any terminal coding session ca
 
 ## 6. Channel Integration
 
-The Channel system allows users to interact with ccLobby sessions through external IM platforms (WeCom, Telegram, Feishu, etc.).
+The Channel system allows users to interact with OpenLobby sessions through external IM platforms (WeCom, Telegram, Feishu, etc.).
 
 ### Core Concepts
 
@@ -420,7 +420,7 @@ The Channel system allows users to interact with ccLobby sessions through extern
 ### ChannelProvider Interface
 
 ```typescript
-// @cclobby/core — packages/core/src/channel.ts
+// @openlobby/core — packages/core/src/channel.ts
 
 interface ChannelProvider {
   readonly channelName: string;   // 'wecom' | 'telegram' | 'feishu'
@@ -441,7 +441,7 @@ Currently, the WeCom Provider (`packages/server/src/channels/wecom.ts`) is imple
 
 `ChannelRouterImpl` (`packages/server/src/channel-router.ts`) bridges IM and SessionManager:
 
-**Inbound flow** (IM user sends message -> ccLobby):
+**Inbound flow** (IM user sends message -> OpenLobby):
 1. Provider receives webhook, constructs `InboundChannelMessage`
 2. Router's `handleInbound()` looks up or creates a binding
 3. Routes based on the binding's target:
@@ -487,7 +487,7 @@ Plan Mode state is stored in the `ManagedSession.planMode` field and conveyed to
 
 ### SQLite Schema
 
-ccLobby only stores lightweight metadata in SQLite -- no message history. The database is located at `~/.cclobby/sessions.db`.
+OpenLobby only stores lightweight metadata in SQLite -- no message history. The database is located at `~/.openlobby/sessions.db`.
 
 #### sessions table
 
@@ -610,7 +610,7 @@ Information hierarchy consistent with CLI terminal:
 ## 11. Project Structure (Monorepo)
 
 ```
-cclobby/
+openlobby/
 ├── package.json                    # pnpm workspace root
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json
@@ -618,7 +618,7 @@ cclobby/
 ├── docs/
 │   └── architecture.md             # This document
 ├── packages/
-│   ├── core/                       # @cclobby/core — Core types and interfaces
+│   ├── core/                       # @openlobby/core — Core types and interfaces
 │   │   ├── src/
 │   │   │   ├── types.ts            # LobbyMessage, AgentAdapter, AgentProcess, SessionSummary
 │   │   │   ├── protocol.ts         # ClientMessage, ServerMessage (WebSocket protocol)
@@ -630,7 +630,7 @@ cclobby/
 │   │   │   └── index.ts
 │   │   └── package.json
 │   │
-│   ├── server/                     # @cclobby/server — Backend service
+│   ├── server/                     # @openlobby/server — Backend service
 │   │   ├── src/
 │   │   │   ├── index.ts            # Fastify service entry point
 │   │   │   ├── session-manager.ts  # Session lifecycle management
@@ -644,7 +644,7 @@ cclobby/
 │   │   │   └── db.ts               # SQLite persistence
 │   │   └── package.json
 │   │
-│   ├── web/                        # @cclobby/web — Frontend Web UI
+│   ├── web/                        # @openlobby/web — Frontend Web UI
 │   │   ├── src/
 │   │   │   ├── App.tsx
 │   │   │   ├── main.tsx
@@ -655,7 +655,7 @@ cclobby/
 │   │   │       └── lobby-store.ts  # Zustand state management
 │   │   └── package.json
 │   │
-│   └── cli/                        # @cclobby/cli — CLI entry point (planned)
+│   └── cli/                        # @openlobby/cli — CLI entry point (planned)
 │       └── package.json
 │
 └── pnpm-lock.yaml
@@ -734,7 +734,7 @@ cclobby/
 |----------|--------|-----------|
 | Claude Code integration | `@anthropic-ai/claude-agent-sdk` | SDK encapsulates subprocess management; `canUseTool` callback supports runtime approval; session/auth shared with CLI |
 | Codex CLI integration | `codex app-server` + JSON-RPC | SDK `runStreamed()` doesn't expose approval events; app-server's `requestApproval` supports per-tool approval |
-| Message storage | None -- reads CLI native JSONL | CLI already persists full history; ccLobby only stores session index |
+| Message storage | None -- reads CLI native JSONL | CLI already persists full history; OpenLobby only stores session index |
 | Lobby Manager | Reuses installed CLI Adapter | Zero extra configuration; essentially a regular session with a constrained system prompt |
 | LM tools | MCP Server | Cross-CLI compatible; structured tool schema; not limited to LM usage |
 | IM integration | ChannelProvider + ChannelRouter | Decouples IM platform differences; binding model supports LM routing and direct binding |
@@ -742,4 +742,4 @@ cclobby/
 | Frontend-backend communication | WebSocket | Streaming messages are a natural fit for WS |
 | State management | Zustand | Lightweight, TypeScript-friendly |
 | Persistence | SQLite | Session index + channel config/bindings, zero configuration |
-| Monorepo | pnpm workspace | Native workspace support, `@cclobby/*` scoped packages |
+| Monorepo | pnpm workspace | Native workspace support, `@openlobby/*` scoped packages |

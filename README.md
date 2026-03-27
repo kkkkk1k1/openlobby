@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">ccLobby</h1>
+  <h1 align="center">OpenLobby</h1>
   <p align="center">Unified session manager for AI coding agents</p>
   <p align="center">
     <a href="README.md">English</a> | <a href="docs/README.zh-CN.md">中文</a>
@@ -8,7 +8,7 @@
 
 ---
 
-Manage Claude Code and Codex CLI sessions in an IM-style web UI. ccLobby lets you run, monitor, and switch between multiple AI coding agent sessions from a single browser tab — think of it as a "chat app" for your coding agents.
+Manage Claude Code and Codex CLI sessions in an IM-style web UI. OpenLobby lets you run, monitor, and switch between multiple AI coding agent sessions from a single browser tab — think of it as a "chat app" for your coding agents.
 
 ## Features
 
@@ -20,7 +20,7 @@ Manage Claude Code and Codex CLI sessions in an IM-style web UI. ccLobby lets yo
 - **LobbyManager** — Built-in meta-agent that routes requests to the right session (MCP-powered)
 - **IM channel binding** — Bridge sessions to WeCom, extensible to Telegram/Feishu
 - **Persistent sessions** — SQLite session index; messages read directly from CLI-native JSONL
-- **Single command** — `npx cclobby` bundles the full stack
+- **Single command** — `npx openlobby` bundles the full stack
 
 ## Architecture
 
@@ -44,10 +44,10 @@ Node.js Server (Fastify)
 
 ```
 packages/
-├── core/       @cclobby/core     — Types, Adapter interface, protocol, channel definitions
-├── server/     @cclobby/server   — Fastify server, SessionManager, WebSocket, MCP, channels
-├── web/        @cclobby/web      — React frontend (Vite + Tailwind)
-└── cli/        cclobby          — CLI entry point & esbuild bundled distribution
+├── core/       @openlobby/core     — Types, Adapter interface, protocol, channel definitions
+├── server/     @openlobby/server   — Fastify server, SessionManager, WebSocket, MCP, channels
+├── web/        @openlobby/web      — React frontend (Vite + Tailwind)
+└── cli/        openlobby          — CLI entry point & esbuild bundled distribution
 ```
 
 ## Usage
@@ -60,14 +60,14 @@ packages/
 ### Quick Start
 
 ```bash
-npx cclobby
+npx openlobby
 ```
 
-This starts the ccLobby server on port 3001 and opens the web UI.
+This starts the OpenLobby server on port 3001 and opens the web UI.
 
 ```bash
 # Custom port
-npx cclobby --port 8080
+npx openlobby --port 8080
 ```
 
 ## Development
@@ -76,7 +76,7 @@ npx cclobby --port 8080
 
 ```bash
 git clone <repo-url>
-cd ccLobby
+cd OpenLobby
 pnpm install
 ```
 
@@ -87,8 +87,8 @@ pnpm install
 pnpm dev
 
 # Or individually
-pnpm --filter @cclobby/server dev   # Backend (port 3001)
-pnpm --filter @cclobby/web dev      # Frontend (port 5173)
+pnpm --filter @openlobby/server dev   # Backend (port 3001)
+pnpm --filter @openlobby/web dev      # Frontend (port 5173)
 ```
 
 ### Build

@@ -1,4 +1,4 @@
-import type { ChannelProvider, ChannelProviderConfig } from '@cclobby/core';
+import type { ChannelProvider, ChannelProviderConfig } from '@openlobby/core';
 import { WeComBotProvider } from './wecom.js';
 
 export function createProvider(config: ChannelProviderConfig): ChannelProvider {

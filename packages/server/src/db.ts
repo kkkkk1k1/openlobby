@@ -20,7 +20,7 @@ export interface SessionRow {
 export function initDb(dbPath?: string): Database.Database {
   const dir = dbPath
     ? join(dbPath, '..')
-    : join(homedir(), '.cclobby');
+    : join(homedir(), '.openlobby');
   mkdirSync(dir, { recursive: true });
 
   const fullPath = dbPath ?? join(dir, 'sessions.db');

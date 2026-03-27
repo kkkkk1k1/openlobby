@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">ccLobby</h1>
+  <h1 align="center">OpenLobby</h1>
   <p align="center">AI 编程智能体统一会话管理器</p>
   <p align="center">
     <a href="../README.md">English</a> | <a href="README.zh-CN.md">中文</a>
@@ -8,7 +8,7 @@
 
 ---
 
-在 IM 风格的 Web 界面中管理 Claude Code 和 Codex CLI 会话。ccLobby 让你在一个浏览器标签页中运行、监控和切换多个 AI 编程智能体会话 —— 就像是你的编程智能体的"聊天应用"。
+在 IM 风格的 Web 界面中管理 Claude Code 和 Codex CLI 会话。OpenLobby 让你在一个浏览器标签页中运行、监控和切换多个 AI 编程智能体会话 —— 就像是你的编程智能体的"聊天应用"。
 
 ## 功能特性
 
@@ -20,7 +20,7 @@
 - **LobbyManager** — 内置元智能体，将请求路由到正确的会话（基于 MCP）
 - **IM 通道绑定** — 将会话桥接到企业微信，可扩展至 Telegram / 飞书
 - **持久化会话** — SQLite 会话索引；消息直接从 CLI 原生 JSONL 文件读取
-- **一键启动** — `npx cclobby` 打包完整技术栈
+- **一键启动** — `npx openlobby` 打包完整技术栈
 
 ## 架构
 
@@ -44,10 +44,10 @@ Node.js 服务端 (Fastify)
 
 ```
 packages/
-├── core/       @cclobby/core     — 类型定义、Adapter 接口、协议、通道定义
-├── server/     @cclobby/server   — Fastify 服务端、SessionManager、WebSocket、MCP、通道
-├── web/        @cclobby/web      — React 前端 (Vite + Tailwind)
-└── cli/        cclobby          — CLI 入口 & esbuild 打包分发
+├── core/       @openlobby/core     — 类型定义、Adapter 接口、协议、通道定义
+├── server/     @openlobby/server   — Fastify 服务端、SessionManager、WebSocket、MCP、通道
+├── web/        @openlobby/web      — React 前端 (Vite + Tailwind)
+└── cli/        openlobby          — CLI 入口 & esbuild 打包分发
 ```
 
 ## 使用
@@ -60,14 +60,14 @@ packages/
 ### 快速开始
 
 ```bash
-npx cclobby
+npx openlobby
 ```
 
-这将在 3001 端口启动 ccLobby 服务并打开 Web 界面。
+这将在 3001 端口启动 OpenLobby 服务并打开 Web 界面。
 
 ```bash
 # 自定义端口
-npx cclobby --port 8080
+npx openlobby --port 8080
 ```
 
 ## 开发
@@ -76,7 +76,7 @@ npx cclobby --port 8080
 
 ```bash
 git clone <repo-url>
-cd ccLobby
+cd OpenLobby
 pnpm install
 ```
 
@@ -87,8 +87,8 @@ pnpm install
 pnpm dev
 
 # 或单独启动
-pnpm --filter @cclobby/server dev   # 后端 (端口 3001)
-pnpm --filter @cclobby/web dev      # 前端 (端口 5173)
+pnpm --filter @openlobby/server dev   # 后端 (端口 3001)
+pnpm --filter @openlobby/web dev      # 前端 (端口 5173)
 ```
 
 ### 构建

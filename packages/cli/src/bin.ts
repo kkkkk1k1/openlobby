@@ -2,7 +2,7 @@
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createServer } from '@cclobby/server';
+import { createServer } from '@openlobby/server';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -15,10 +15,10 @@ function parseArgs(args: string[]) {
     }
     if (args[i] === '--help' || args[i] === '-h') {
       console.log(`
-cclobby - Unified AI Agent Session Manager
+openlobby - Unified AI Agent Session Manager
 
 Usage:
-  cclobby [options]
+  openlobby [options]
 
 Options:
   -p, --port <port>  Server port (default: 3001)
@@ -44,6 +44,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Failed to start ccLobby:', err);
+  console.error('Failed to start OpenLobby:', err);
   process.exit(1);
 });

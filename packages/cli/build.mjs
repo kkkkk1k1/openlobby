@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, '..', '..');
 
 console.log('[1/3] Building web frontend...');
-execSync('pnpm --filter @cclobby/web build', { cwd: rootDir, stdio: 'inherit' });
+execSync('pnpm --filter @openlobby/web build', { cwd: rootDir, stdio: 'inherit' });
 
 console.log('[2/3] Bundling server with esbuild...');
 await build({
@@ -25,7 +25,7 @@ await build({
   ],
   banner: {
     js: [
-      '// cclobby - Unified AI Agent Session Manager',
+      '// openlobby - Unified AI Agent Session Manager',
       'import { createRequire } from "node:module";',
       'const require = createRequire(import.meta.url);',
     ].join('\n'),
@@ -34,8 +34,8 @@ await build({
   minify: false,
   // Resolve workspace packages
   alias: {
-    '@cclobby/core': join(rootDir, 'packages', 'core', 'src', 'index.ts'),
-    '@cclobby/server': join(rootDir, 'packages', 'server', 'src', 'index.ts'),
+    '@openlobby/core': join(rootDir, 'packages', 'core', 'src', 'index.ts'),
+    '@openlobby/server': join(rootDir, 'packages', 'server', 'src', 'index.ts'),
   },
 });
 

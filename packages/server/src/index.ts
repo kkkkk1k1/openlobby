@@ -5,8 +5,8 @@ import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
-import { ClaudeCodeAdapter, CodexCliAdapter } from '@cclobby/core';
-import type { AgentAdapter } from '@cclobby/core';
+import { ClaudeCodeAdapter, CodexCliAdapter } from '@openlobby/core';
+import type { AgentAdapter } from '@openlobby/core';
 import { SessionManager } from './session-manager.js';
 import { handleWebSocket } from './ws-handler.js';
 import { initDb, getAllProviders } from './db.js';
@@ -125,10 +125,10 @@ export async function createServer(options: ServerOptions = {}) {
   // File upload and serving
   await registerUploadRoute(app);
 
-  // Serve uploaded files (only from .cclobby-cache directories)
+  // Serve uploaded files (only from .openlobby-cache directories)
   app.get('/api/file', async (request, reply) => {
     const filePath = (request.query as { path?: string }).path;
-    if (!filePath || !filePath.includes('.cclobby-cache')) {
+    if (!filePath || !filePath.includes('.openlobby-cache')) {
       return reply.status(403).send({ error: 'Access denied' });
     }
     const { existsSync, createReadStream } = await import('node:fs');
@@ -169,7 +169,7 @@ export async function createServer(options: ServerOptions = {}) {
   }
 
   await app.listen({ port, host: '0.0.0.0' });
-  console.log(`ccLobby server running on http://localhost:${port}`);
+  console.log(`OpenLobby server running on http://localhost:${port}`);
 
   return app;
 }

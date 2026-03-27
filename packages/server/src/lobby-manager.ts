@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type {
   AgentAdapter,
   McpServerConfig,
-} from '@cclobby/core';
+} from '@openlobby/core';
 import type { SessionManager } from './session-manager.js';
 import type Database from 'better-sqlite3';
 import { getSessionByOrigin, deleteSession } from './db.js';
@@ -18,7 +18,7 @@ No matter what the user asks, your ONLY action is: find or create a session, the
 If you catch yourself starting to work on a task, STOP IMMEDIATELY and route to a session instead.
 
 # Role
-You are the ccLobby Lobby Manager (LM). You manage AI coding sessions — nothing else.
+You are the OpenLobby Lobby Manager (LM). You manage AI coding sessions — nothing else.
 
 # What you do
 - List/search sessions
@@ -61,15 +61,15 @@ Respond in the same language as the user's message.`;
 
 /** MCP tool names that the Lobby Manager is allowed to use (auto-approved) */
 const LM_ALLOWED_TOOLS = [
-  'mcp__cclobby__lobby_list_sessions',
-  'mcp__cclobby__lobby_create_session',
-  'mcp__cclobby__lobby_rename_session',
-  'mcp__cclobby__lobby_destroy_session',
-  'mcp__cclobby__lobby_session_info',
-  'mcp__cclobby__lobby_cleanup_idle',
-  'mcp__cclobby__lobby_discover_sessions',
-  'mcp__cclobby__lobby_import_session',
-  'mcp__cclobby__lobby_navigate_session',
+  'mcp__openlobby__lobby_list_sessions',
+  'mcp__openlobby__lobby_create_session',
+  'mcp__openlobby__lobby_rename_session',
+  'mcp__openlobby__lobby_destroy_session',
+  'mcp__openlobby__lobby_session_info',
+  'mcp__openlobby__lobby_cleanup_idle',
+  'mcp__openlobby__lobby_discover_sessions',
+  'mcp__openlobby__lobby_import_session',
+  'mcp__openlobby__lobby_navigate_session',
 ];
 
 /** Priority order for selecting the Lobby Manager's driver adapter */
@@ -116,7 +116,7 @@ export class LobbyManager {
     systemPrompt: string;
     permissionMode: string;
     allowedTools: string[];
-    mcpServers: Record<string, import('@cclobby/core').McpServerConfig>;
+    mcpServers: Record<string, import('@openlobby/core').McpServerConfig>;
   } {
     return {
       cwd: this.cwd,
@@ -224,10 +224,10 @@ export class LobbyManager {
     console.log(`[LM] MCP Server: ${command} ${mcpServerPath}`);
 
     return {
-      'cclobby': {
+      'openlobby': {
         command,
         args: [mcpServerPath],
-        env: { CCLOBBY_API: `http://127.0.0.1:${this.mcpApiPort}` },
+        env: { OPENLOBBY_API: `http://127.0.0.1:${this.mcpApiPort}` },
       },
     };
   }

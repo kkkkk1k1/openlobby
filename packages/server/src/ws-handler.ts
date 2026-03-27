@@ -1,5 +1,5 @@
 import type { WebSocket } from '@fastify/websocket';
-import type { ClientMessage, ServerMessage, LobbyMessage } from '@cclobby/core';
+import type { ClientMessage, ServerMessage, LobbyMessage } from '@openlobby/core';
 import type { SessionManager } from './session-manager.js';
 import type { LobbyManager } from './lobby-manager.js';
 import type { ChannelRouterImpl } from './channel-router.js';
@@ -114,7 +114,7 @@ export function handleWebSocket(
         }
 
         case 'session.history': {
-          let messages: import('@cclobby/core').LobbyMessage[] = [];
+          let messages: import('@openlobby/core').LobbyMessage[] = [];
           const adapter = sessionManager.getAdapterForSession(data.sessionId);
           if (adapter) {
             messages = await adapter.readSessionHistory(data.sessionId);

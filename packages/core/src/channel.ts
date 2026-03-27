@@ -17,7 +17,7 @@ export function toIdentityKey(id: ChannelIdentity): ChannelIdentityKey {
   return `${id.channelName}:${id.accountId}:${id.peerId}`;
 }
 
-/** 入站消息（IM → ccLobby） */
+/** 入站消息（IM → OpenLobby） */
 export interface InboundChannelMessage {
   /** 来自 IM 平台的原始消息 ID */
   externalMessageId: string;
@@ -41,7 +41,7 @@ export interface InboundChannelMessage {
   raw?: unknown;
 }
 
-/** 出站消息（ccLobby → IM） */
+/** 出站消息（OpenLobby → IM） */
 export interface OutboundChannelMessage {
   /** 目标用户 */
   identity: ChannelIdentity;

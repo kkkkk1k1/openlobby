@@ -7,8 +7,8 @@ import type {
   InboundChannelMessage,
   LobbyMessage,
   SessionSummary,
-} from '@cclobby/core';
-import { toIdentityKey } from '@cclobby/core';
+} from '@openlobby/core';
+import { toIdentityKey } from '@openlobby/core';
 import type Database from 'better-sqlite3';
 import type { SessionManager } from './session-manager.js';
 import type { LobbyManager } from './lobby-manager.js';

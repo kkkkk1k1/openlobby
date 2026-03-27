@@ -151,8 +151,8 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
     try {
       await this.sendRpc('initialize', {
         clientInfo: {
-          name: 'cclobby',
-          title: 'ccLobby',
+          name: 'openlobby',
+          title: 'OpenLobby',
           version: '0.2.0',
         },
       });

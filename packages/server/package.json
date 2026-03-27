@@ -1,5 +1,5 @@
 {
-  "name": "@cclobby/server",
+  "name": "@openlobby/server",
   "version": "0.2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,7 +15,7 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@cclobby/core": "workspace:*",
+    "@openlobby/core": "workspace:*",
     "@fastify/multipart": "^9.0.0",
     "@fastify/static": "^9.0.0",
     "@fastify/websocket": "^11.0.0",

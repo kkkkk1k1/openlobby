@@ -30,8 +30,8 @@ export async function registerUploadRoute(app: FastifyInstance): Promise<void> {
     }
     const buffer = Buffer.concat(chunks);
 
-    // Save to <cwd>/.cclobby-cache/
-    const cacheDir = join(cwd, '.cclobby-cache');
+    // Save to <cwd>/.openlobby-cache/
+    const cacheDir = join(cwd, '.openlobby-cache');
     mkdirSync(cacheDir, { recursive: true });
 
     const ext = extname(data.filename);

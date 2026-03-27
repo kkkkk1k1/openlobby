@@ -117,7 +117,7 @@ export default function Sidebar() {
       <aside className="w-72 bg-gray-900 border-r border-gray-700 flex flex-col h-full">
         {/* Header */}
         <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
-          <h1 className="text-lg font-bold text-gray-100">ccLobby</h1>
+          <h1 className="text-lg font-bold text-gray-100">OpenLobby</h1>
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => wsDiscoverSessions()}

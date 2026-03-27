@@ -5,7 +5,7 @@ import type {
   ChannelRouter,
   ChannelProviderConfig,
   OutboundChannelMessage,
-} from '@cclobby/core';
+} from '@openlobby/core';
 import { randomUUID } from 'node:crypto';
 
 /** Max text length for WeCom stream reply (20480 bytes) */
