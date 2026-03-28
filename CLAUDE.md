@@ -35,13 +35,13 @@ Users can manage multiple AI coding agent sessions (Claude Code, Codex CLI) thro
 
 ## Workflow Rules
 - Each bug fix or feature must be committed separately with its own commit message
-- Use superpowers skills for structured workflows:
-  - `/superpowers:brainstorming` — Before any new feature or design work
-  - `/superpowers:writing-plans` — Before multi-step implementation
-  - `/superpowers:subagent-driven-development` — Execute plans with per-task subagents
+- **MANDATORY: All feature upgrades and bug fixes MUST follow the superpowers workflow.** Do NOT skip these steps or implement changes directly without going through the process:
+  - `/superpowers:brainstorming` — **Required** before any new feature or design work. Produce a design spec first.
+  - `/superpowers:writing-plans` — **Required** before multi-step implementation. Produce an implementation plan from the spec.
+  - `/superpowers:subagent-driven-development` — **Required** to execute plans with per-task subagents and two-stage review.
   - `/superpowers:test-driven-development` — Write tests before implementation
-  - `/superpowers:systematic-debugging` — Debug before proposing fixes
-  - `/superpowers:verification-before-completion` — Verify work before claiming done
+  - `/superpowers:systematic-debugging` — **Required** before proposing any bug fix. Diagnose root cause first, then fix.
+  - `/superpowers:verification-before-completion` — **Required** before claiming work is done. Verify with evidence.
 - Use project skill `/new-cli-adapter` to generate new Agentic CLI adapter packages
 - Use project skill `/new-channel-provider` to generate new IM channel provider packages
 
