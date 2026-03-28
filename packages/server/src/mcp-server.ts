@@ -60,21 +60,23 @@ async function main() {
   // --- Tool: lobby_create_session ---
   server.tool(
     'lobby_create_session',
-    'Create a new Agentic CLI session. Directory will be auto-created if it does not exist.',
+    'Create a new Agentic CLI session. Directory will be auto-created if it does not exist. By default, auto-navigates the user to the new session (Web UI + IM channel switch).',
     {
       adapter: z.enum(['claude-code', 'codex-cli']).default('claude-code').describe('CLI adapter to use (default: claude-code)'),
       cwd: z.string().describe('Working directory for the session'),
       name: z.string().optional().describe('Display name for the session'),
       model: z.string().optional().describe('Model to use (e.g. claude-sonnet-4-5-20250514)'),
-      initialPrompt: z.string().optional().describe('Initial message to send to the session after creation'),
+      initialPrompt: z.string().optional().describe('Optional initial message — only pass when explicitly needed, not by default'),
+      autoNavigate: z.boolean().default(true).describe('Auto-navigate user to the new session after creation (default: true)'),
     },
-    async ({ adapter, cwd, name, model, initialPrompt }) => {
+    async ({ adapter, cwd, name, model, initialPrompt, autoNavigate }) => {
       const result = await apiCall('POST', '/api/sessions', {
         adapter,
         cwd,
         name,
         model,
         initialPrompt,
+        navigate: autoNavigate,
       });
       return textResult(result);
     },
