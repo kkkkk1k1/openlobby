@@ -163,11 +163,9 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
     super();
     this.sessionId = sessionId;
     this.spawnOptions = options;
-
-    // If an initial prompt was provided, start the query immediately
-    if (options.prompt) {
-      this.runQuery(options.prompt);
-    }
+    // NOTE: Do NOT start query here. The caller must wire events first,
+    // then call sendMessage() to avoid a race condition where messages
+    // are emitted before listeners are attached.
   }
 
   private async runQuery(prompt: string, resumeId?: string): Promise<void> {
@@ -440,9 +438,8 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     }, this.detectedCliPath);
     // Mark as resume so sendMessage() uses SDK resume instead of fresh query
     proc.setResumeId(sessionId);
-    if (options?.prompt) {
-      proc.sendMessage(options.prompt);
-    }
+    // NOTE: Do NOT send prompt here. The caller must wire events first,
+    // then call sendMessage() to avoid race condition.
     return proc;
   }
 

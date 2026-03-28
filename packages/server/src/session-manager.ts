@@ -288,6 +288,10 @@ export class SessionManager {
     this.sessions.set(session.id, session);
     this.persistSession(session);
     this.broadcastSessionUpdate(session);
+    // Send initial prompt AFTER events are wired to avoid race condition
+    if (options.prompt) {
+      process.sendMessage(options.prompt);
+    }
     return session;
   }
 
@@ -319,6 +323,10 @@ export class SessionManager {
     this.wireProcessEvents(session);
     this.sessions.set(session.id, session);
     this.persistSession(session);
+    // Send initial prompt AFTER events are wired to avoid race condition
+    if (options.prompt) {
+      process.sendMessage(options.prompt);
+    }
     return session;
   }
 
@@ -416,11 +424,13 @@ export class SessionManager {
       this.pendingPlanMode.delete(sessionId);
     }
 
-    // Wire up events (same as createSession)
+    // Wire up events BEFORE sending prompt to avoid race condition
     this.wireProcessEvents(session);
     this.sessions.set(session.id, session);
     this.persistSessionStatus(session);
     this.broadcastSessionUpdate(session);
+    // Send the initial prompt after events are wired
+    process.sendMessage(prompt);
     return session;
   }
 

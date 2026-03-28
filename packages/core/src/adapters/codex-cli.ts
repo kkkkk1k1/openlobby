@@ -249,10 +249,8 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
         adapter: 'codex-cli',
       }));
 
-      // If an initial prompt was provided, send it
-      if (mode === 'spawn' && this.spawnOptions.prompt) {
-        this.sendMessage(this.spawnOptions.prompt);
-      }
+      // NOTE: Do NOT send prompt here. The caller must wire events first,
+      // then call sendMessage() to avoid race condition.
     } catch (err) {
       console.error('[Codex] Thread start/resume failed:', err);
       this.emit('message', makeLobbyMessage(this.sessionId, 'system', {
@@ -834,9 +832,8 @@ export class CodexCliAdapter implements AgentAdapter {
       permissionMode: options?.permissionMode,
     });
     await proc.init('resume', sessionId);
-    if (options?.prompt) {
-      proc.sendMessage(options.prompt);
-    }
+    // NOTE: Do NOT send prompt here. The caller must wire events first,
+    // then call sendMessage() to avoid race condition.
     return proc;
   }
 
