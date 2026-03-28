@@ -73,7 +73,7 @@ const LM_ALLOWED_TOOLS = [
 ];
 
 /** Priority order for selecting the Lobby Manager's driver adapter */
-const ADAPTER_PRIORITY = ['codex-cli', 'claude-code'];
+const ADAPTER_PRIORITY = ['claude-code', 'codex-cli'];
 
 /**
  * LobbyManager is a special session managed through SessionManager.
