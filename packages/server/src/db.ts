@@ -83,6 +83,16 @@ export function initDb(dbPath?: string): Database.Database {
     )
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS adapter_plugins (
+      name          TEXT PRIMARY KEY,
+      package_name  TEXT NOT NULL,
+      display_name  TEXT NOT NULL,
+      enabled       INTEGER DEFAULT 1,
+      created_at    INTEGER NOT NULL
+    )
+  `);
+
   return db;
 }
 
@@ -270,4 +280,33 @@ export function upsertSessionCommands(db: Database.Database, sessionId: string, 
 
 export function deleteSessionCommands(db: Database.Database, sessionId: string): void {
   db.prepare('DELETE FROM session_commands WHERE session_id = ?').run(sessionId);
+}
+
+// ─── Adapter Plugins ────────────────────────────────────────────────
+
+export interface AdapterPluginRow {
+  name: string;
+  package_name: string;
+  display_name: string;
+  enabled: number;
+  created_at: number;
+}
+
+export function getAllAdapterPlugins(db: Database.Database): AdapterPluginRow[] {
+  return db.prepare('SELECT * FROM adapter_plugins ORDER BY created_at').all() as AdapterPluginRow[];
+}
+
+export function upsertAdapterPlugin(db: Database.Database, row: AdapterPluginRow): void {
+  db.prepare(`
+    INSERT OR REPLACE INTO adapter_plugins (name, package_name, display_name, enabled, created_at)
+    VALUES (@name, @package_name, @display_name, @enabled, @created_at)
+  `).run(row);
+}
+
+export function deleteAdapterPlugin(db: Database.Database, name: string): void {
+  db.prepare('DELETE FROM adapter_plugins WHERE name = ?').run(name);
+}
+
+export function toggleAdapterPlugin(db: Database.Database, name: string, enabled: boolean): void {
+  db.prepare('UPDATE adapter_plugins SET enabled = ? WHERE name = ?').run(enabled ? 1 : 0, name);
 }
