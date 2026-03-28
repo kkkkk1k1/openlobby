@@ -322,6 +322,15 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
         toolInput,
         resolve: (result) => resolve({ ...result, toolUseID }),
       });
+
+      // Auto-deny after 5 minutes if no response arrives (e.g., connection dropped)
+      setTimeout(() => {
+        if (this.pendingControls.has(requestId)) {
+          console.warn('[ClaudeCode] Approval timed out for:', requestId);
+          this.pendingControls.delete(requestId);
+          resolve({ behavior: 'deny', message: 'Approval timed out', interrupt: true, toolUseID });
+        }
+      }, 5 * 60 * 1000);
     });
   }
 
@@ -373,6 +382,11 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
 
   kill(): void {
     console.log('[ClaudeCode] Killing process');
+    // Resolve all pending tool approvals so promises don't hang
+    for (const [id, pending] of this.pendingControls) {
+      pending.resolve({ behavior: 'deny', message: 'Session killed' });
+    }
+    this.pendingControls.clear();
     this.abortController.abort();
     this.status = 'stopped';
     this.emit('exit', 0);
