@@ -77,7 +77,8 @@ interface LobbyState {
   channelBindings: ChannelBindingData[];
 
   commandsBySession: Record<string, Array<{ name: string; description: string; args?: string }>>;
-  setSessionCommands: (sessionId: string, commands: Array<{ name: string; description: string; args?: string }>) => void;
+  commandsLoadingBySession: Record<string, boolean>;
+  setSessionCommands: (sessionId: string, commands: Array<{ name: string; description: string; args?: string }>, cached?: boolean) => void;
 
   setConnected: (connected: boolean) => void;
   addSession: (session: SessionSummaryData) => void;
@@ -128,6 +129,7 @@ export const useLobbyStore = create<LobbyState>((set) => ({
   channelBindings: [],
 
   commandsBySession: {},
+  commandsLoadingBySession: {},
 
   setConnected: (connected) => set({ connected }),
 
@@ -312,8 +314,9 @@ export const useLobbyStore = create<LobbyState>((set) => ({
   setChannelProviders: (providers) => set({ channelProviders: providers }),
   setChannelBindings: (bindings) => set({ channelBindings: bindings }),
 
-  setSessionCommands: (sessionId, commands) =>
+  setSessionCommands: (sessionId, commands, cached) =>
     set((state) => ({
       commandsBySession: { ...state.commandsBySession, [sessionId]: commands },
+      commandsLoadingBySession: { ...state.commandsLoadingBySession, [sessionId]: cached === true },
     })),
 }));

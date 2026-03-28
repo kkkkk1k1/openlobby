@@ -75,6 +75,14 @@ export function initDb(dbPath?: string): Database.Database {
       WHERE active_session_id IS NOT NULL
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS session_commands (
+      session_id   TEXT PRIMARY KEY,
+      commands_json TEXT NOT NULL,
+      updated_at   INTEGER NOT NULL
+    )
+  `);
+
   return db;
 }
 
@@ -239,4 +247,27 @@ export function resetBindingTargetBySession(db: Database.Database, sessionId: st
   db.prepare(
     `UPDATE channel_bindings SET target = 'lobby-manager', active_session_id = NULL WHERE target = ? OR active_session_id = ?`,
   ).run(sessionId, sessionId);
+}
+
+// ─── Session Commands Cache ─────────────────────────────────────────
+
+export interface SessionCommandRow {
+  session_id: string;
+  commands_json: string;
+  updated_at: number;
+}
+
+export function getSessionCommands(db: Database.Database, sessionId: string): SessionCommandRow | undefined {
+  return db.prepare('SELECT * FROM session_commands WHERE session_id = ?').get(sessionId) as SessionCommandRow | undefined;
+}
+
+export function upsertSessionCommands(db: Database.Database, sessionId: string, commandsJson: string): void {
+  db.prepare(`
+    INSERT OR REPLACE INTO session_commands (session_id, commands_json, updated_at)
+    VALUES (?, ?, ?)
+  `).run(sessionId, commandsJson, Date.now());
+}
+
+export function deleteSessionCommands(db: Database.Database, sessionId: string): void {
+  db.prepare('DELETE FROM session_commands WHERE session_id = ?').run(sessionId);
 }

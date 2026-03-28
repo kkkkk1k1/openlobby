@@ -118,6 +118,28 @@ function sdkMessageToLobby(sessionId: string, msg: any): LobbyMessage[] {
 /** Read-only tools allowed in plan mode */
 const PLAN_MODE_TOOLS = ['Read', 'Glob', 'Grep', 'Agent', 'WebSearch', 'WebFetch'];
 
+/** Fallback commands shown before any session loads the real list from SDK */
+const FALLBACK_COMMANDS: AdapterCommand[] = [
+  { name: '/compact', description: 'Compact conversation to save context', args: '[instructions]' },
+  { name: '/cost', description: 'Show token usage and cost for this session' },
+  { name: '/model', description: 'Switch the AI model', args: '<model-name>' },
+  { name: '/permissions', description: 'View or update permission rules' },
+  { name: '/memory', description: 'Edit CLAUDE.md memory files' },
+  { name: '/config', description: 'View or modify settings' },
+  { name: '/status', description: 'Show account and session status' },
+  { name: '/doctor', description: 'Check health of Claude Code' },
+  { name: '/review', description: 'Review code changes' },
+  { name: '/plan', description: 'Toggle plan mode (read-only exploration)' },
+  { name: '/vim', description: 'Toggle vim keybinding mode' },
+  { name: '/fast', description: 'Toggle fast mode (same model, faster output)' },
+  { name: '/hooks', description: 'Manage event hooks' },
+  { name: '/mcp', description: 'Manage MCP servers' },
+  { name: '/add-dir', description: 'Add directory to tool access', args: '<path>' },
+  { name: '/init', description: 'Initialize CLAUDE.md in project' },
+  { name: '/terminal-setup', description: 'Install shell integration (Shift+Enter)' },
+  { name: '/help', description: 'Show Claude Code help' },
+];
+
 const PLAN_MODE_SYSTEM_PROMPT = `
 You are in PLAN MODE. Only explore the codebase and produce a detailed implementation plan.
 Do NOT modify any files. Use only read-only tools (Read, Glob, Grep).
@@ -202,6 +224,9 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
         pathToClaudeCodeExecutable: this.claudeCliPath,
         // Pass sanitized env to the spawned CLI process
         env: subprocessEnv,
+        // Load user/project/local settings so MCP servers, skills, hooks, etc. are available
+        // (without this, SDK runs in isolation mode and ignores all configured tools)
+        settingSources: ['user', 'project', 'local'],
         // Only auto-allow read-only tools; Write/Edit/Bash require approval via canUseTool
         allowedTools: this.spawnOptions.allowedTools ?? [
           'Read', 'Glob', 'Grep',
@@ -221,6 +246,8 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
       if (this.spawnOptions.model) {
         queryOpts.model = this.spawnOptions.model;
       }
+      // Use Claude Code default system prompt + append custom instructions (preserves skills/tools)
+      // For custom system prompts (e.g. LobbyManager), use string directly
       if (this.spawnOptions.systemPrompt) {
         queryOpts.systemPrompt = this.spawnOptions.systemPrompt;
       }
@@ -247,6 +274,23 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
       });
 
       const stream = sdk.query({ prompt, options: queryOpts });
+
+      // Fetch available commands from the SDK and emit for session-level caching
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const query = stream as any;
+      if (typeof query.supportedCommands === 'function') {
+        query.supportedCommands().then((cmds: Array<{ name: string; description: string; argumentHint?: string }>) => {
+          const commands: AdapterCommand[] = cmds.map((c) => ({
+            name: c.name.startsWith('/') ? c.name : `/${c.name}`,
+            description: c.description,
+            ...(c.argumentHint ? { args: c.argumentHint } : {}),
+          }));
+          console.log(`[ClaudeCode] SDK supportedCommands: ${commands.length} commands for session ${this.sessionId}`);
+          this.emit('commands', commands);
+        }).catch((err: Error) => {
+          console.warn('[ClaudeCode] supportedCommands failed:', err.message);
+        });
+      }
 
       for await (const msg of stream) {
         if (this.abortController.signal.aborted) break;
@@ -397,7 +441,6 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   readonly name = 'claude-code';
   readonly displayName = 'Claude Code';
   private detectedCliPath: string | undefined;
-  private cachedCommands: AdapterCommand[] | null = null;
 
   async detect(): Promise<{
     installed: boolean;
@@ -417,6 +460,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       return { installed: false };
     }
   }
+
 
   async spawn(options: SpawnOptions): Promise<AgentProcess> {
     const sessionId = randomUUID();
@@ -728,53 +772,8 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   }
 
   async listCommands(): Promise<AdapterCommand[]> {
-    if (this.cachedCommands) return this.cachedCommands;
-    try {
-      const output = execSync('claude print-commands', {
-        encoding: 'utf-8',
-        timeout: 5000,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      }).trim();
-      // Parse lines like: /command - description
-      const commands: AdapterCommand[] = [];
-      for (const line of output.split('\n')) {
-        const match = line.match(/^\s*(\/\S+)\s*(?:\[([^\]]*)\])?\s*[-\u2013\u2014]\s*(.+)$/);
-        if (match) {
-          commands.push({
-            name: match[1],
-            description: match[3].trim(),
-            ...(match[2] ? { args: match[2] } : {}),
-          });
-        }
-      }
-      if (commands.length > 0) {
-        this.cachedCommands = commands;
-        return commands;
-      }
-    } catch {
-      // CLI not available or command failed
-    }
-    // Fallback: return common Claude Code commands
-    this.cachedCommands = [
-      { name: '/compact', description: 'Compact conversation to save context', args: '[instructions]' },
-      { name: '/cost', description: 'Show token usage and cost for this session' },
-      { name: '/model', description: 'Switch the AI model', args: '<model-name>' },
-      { name: '/permissions', description: 'View or update permission rules' },
-      { name: '/memory', description: 'Edit CLAUDE.md memory files' },
-      { name: '/config', description: 'View or modify settings' },
-      { name: '/status', description: 'Show account and session status' },
-      { name: '/doctor', description: 'Check health of Claude Code' },
-      { name: '/review', description: 'Review code changes' },
-      { name: '/plan', description: 'Toggle plan mode (read-only exploration)' },
-      { name: '/vim', description: 'Toggle vim keybinding mode' },
-      { name: '/fast', description: 'Toggle fast mode (same model, faster output)' },
-      { name: '/hooks', description: 'Manage event hooks' },
-      { name: '/mcp', description: 'Manage MCP servers' },
-      { name: '/add-dir', description: 'Add directory to tool access', args: '<path>' },
-      { name: '/init', description: 'Initialize CLAUDE.md in project' },
-      { name: '/terminal-setup', description: 'Install shell integration (Shift+Enter)' },
-      { name: '/help', description: 'Show Claude Code help' },
-    ];
-    return this.cachedCommands;
+    // Per-session commands are fetched via SDK's query.supportedCommands() and cached in SQLite.
+    // This fallback is used before any session has run.
+    return FALLBACK_COMMANDS;
   }
 }

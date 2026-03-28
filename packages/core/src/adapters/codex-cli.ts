@@ -83,6 +83,13 @@ function extractTextFromContent(content: any): string {
 /** System prompt injected when plan mode is active */
 const CODEX_PLAN_MODE_PROMPT = `You are in PLAN MODE. Only analyze, explore (read files, search), and plan. Do NOT write, edit, create, or delete any files. Do NOT execute any commands that modify the system. Only use read-only tools.`;
 
+/** Static commands for Codex CLI (no plugin/skill system) */
+const CODEX_COMMANDS: AdapterCommand[] = [
+  { name: '/help', description: 'Show help information' },
+  { name: '/model', description: 'Switch the AI model', args: '<model-name>' },
+  { name: '/approval', description: 'Change approval mode', args: '<mode>' },
+];
+
 class CodexCliProcess extends EventEmitter implements AgentProcess {
   sessionId: string;
   readonly adapter = 'codex-cli';
@@ -249,6 +256,9 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
         adapter: 'codex-cli',
       }));
 
+      // Fetch skills from app-server and emit for session-level caching
+      this.fetchSkills();
+
       // NOTE: Do NOT send prompt here. The caller must wire events first,
       // then call sendMessage() to avoid race condition.
     } catch (err) {
@@ -259,6 +269,44 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
       this.status = 'error';
       this.emit('error', err instanceof Error ? err : new Error(String(err)));
     }
+  }
+
+  /** Fetch available skills via skills/list RPC and emit as commands */
+  private fetchSkills(): void {
+    this.sendRpc('skills/list', { cwds: [this.spawnOptions.cwd] })
+      .then((result) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data = (result as any)?.data as Array<{
+          skills: Array<{
+            name: string;
+            description: string;
+            shortDescription?: string;
+            enabled: boolean;
+          }>;
+        }> | undefined;
+        if (!data) {
+          console.log('[Codex] skills/list returned no data, using fallback');
+          this.emit('commands', CODEX_COMMANDS);
+          return;
+        }
+        const commands: AdapterCommand[] = [...CODEX_COMMANDS];
+        for (const entry of data) {
+          for (const skill of entry.skills) {
+            if (!skill.enabled) continue;
+            commands.push({
+              name: skill.name.startsWith('/') ? skill.name : `/${skill.name}`,
+              description: skill.shortDescription ?? skill.description,
+            });
+          }
+        }
+        console.log(`[Codex] skills/list: ${commands.length} commands (${commands.length - CODEX_COMMANDS.length} skills)`);
+        this.emit('commands', commands);
+      })
+      .catch((err) => {
+        // skills/list not supported in this version — fall back to static list
+        console.warn('[Codex] skills/list failed (may not be supported):', (err as Error).message);
+        this.emit('commands', CODEX_COMMANDS);
+      });
   }
 
   // ── Public API (AgentProcess) ──
@@ -880,11 +928,7 @@ export class CodexCliAdapter implements AgentAdapter {
   }
 
   async listCommands(): Promise<AdapterCommand[]> {
-    return [
-      { name: '/help', description: 'Show help information' },
-      { name: '/model', description: 'Switch the AI model', args: '<model-name>' },
-      { name: '/approval', description: 'Change approval mode', args: '<mode>' },
-    ];
+    return CODEX_COMMANDS;
   }
 
   // ── Private helpers ──

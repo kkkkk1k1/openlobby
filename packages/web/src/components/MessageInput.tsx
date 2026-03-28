@@ -59,6 +59,9 @@ export default function MessageInput({ onSend, disabled, placeholder }: Props) {
   const sessionCommands = useLobbyStore((s) =>
     s.activeSessionId ? s.commandsBySession[s.activeSessionId] : undefined,
   );
+  const commandsLoading = useLobbyStore((s) =>
+    s.activeSessionId ? s.commandsLoadingBySession[s.activeSessionId] ?? false : false,
+  );
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -276,6 +279,7 @@ export default function MessageInput({ onSend, disabled, placeholder }: Props) {
           selectedIndex={slashIndex}
           onSelect={handleSlashSelect}
           commands={sessionCommands}
+          loading={commandsLoading}
         />
       )}
 

@@ -5,6 +5,7 @@ import type {
   LobbyMessage,
   SessionSummary,
   ControlDecision,
+  AdapterCommand,
 } from '@openlobby/core';
 import type Database from 'better-sqlite3';
 import {
@@ -13,6 +14,8 @@ import {
   updateSessionStatus,
   updateSessionDisplayName,
   getAllSessions,
+  getSessionCommands,
+  upsertSessionCommands,
 } from './db.js';
 
 export interface ManagedSession {
@@ -44,6 +47,10 @@ export class SessionManager {
     (session: SessionSummary, previousId?: string) => void
   >();
   private navigateListeners = new Map<string, (sessionId: string) => void>();
+  private commandsListeners = new Map<
+    string,
+    (sessionId: string, commands: AdapterCommand[]) => void
+  >();
   private db: Database.Database | null;
   /** Track planMode for sessions not yet in memory (set before lazy resume) */
   private pendingPlanMode = new Map<string, boolean>();
@@ -98,6 +105,35 @@ export class SessionManager {
   broadcastNavigate(sessionId: string): void {
     for (const handler of this.navigateListeners.values()) {
       handler(sessionId);
+    }
+  }
+
+  onCommands(
+    listenerId: string,
+    handler: (sessionId: string, commands: AdapterCommand[]) => void,
+  ): void {
+    this.commandsListeners.set(listenerId, handler);
+  }
+
+  removeCommandsListener(listenerId: string): void {
+    this.commandsListeners.delete(listenerId);
+  }
+
+  /** Get cached commands for a session from SQLite */
+  getCachedCommands(sessionId: string): AdapterCommand[] | null {
+    if (!this.db) return null;
+    const row = getSessionCommands(this.db, sessionId);
+    if (!row) return null;
+    try {
+      return JSON.parse(row.commands_json) as AdapterCommand[];
+    } catch {
+      return null;
+    }
+  }
+
+  private broadcastCommands(sessionId: string, commands: AdapterCommand[]): void {
+    for (const handler of this.commandsListeners.values()) {
+      handler(sessionId, commands);
     }
   }
 
@@ -211,6 +247,14 @@ export class SessionManager {
       cache.push(msg);
 
       this.broadcastMessage(session.id, msg);
+    });
+
+    process.on('commands', (commands: AdapterCommand[]) => {
+      // Persist commands per session in SQLite
+      if (this.db) {
+        upsertSessionCommands(this.db, session.id, JSON.stringify(commands));
+      }
+      this.broadcastCommands(session.id, commands);
     });
 
     process.on('idle', () => {

@@ -76,5 +76,5 @@ export type ServerMessage =
   | { type: 'channel.bindings-list'; bindings: ChannelBinding[] }
   | { type: 'channel.binding-updated'; binding: ChannelBinding }
   | { type: 'channel.binding-removed'; identityKey: string }
-  | { type: 'completion.response'; sessionId: string; commands: AdapterCommand[] }
+  | { type: 'completion.response'; sessionId: string; commands: AdapterCommand[]; cached?: boolean }
   | { type: 'channel.plugins-list'; plugins: ChannelPluginInfo[] };

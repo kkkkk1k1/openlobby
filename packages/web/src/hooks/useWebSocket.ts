@@ -27,6 +27,7 @@ interface ServerMessage {
   healthy?: boolean;
   identityKey?: string;
   commands?: Array<{ name: string; description: string; args?: string }>;
+  cached?: boolean;
 }
 
 /**
@@ -186,7 +187,7 @@ function ensureConnection(url: string) {
 
       case 'completion.response':
         if (data.sessionId && data.commands) {
-          state.setSessionCommands(data.sessionId, data.commands);
+          state.setSessionCommands(data.sessionId, data.commands, data.cached);
         }
         break;
 
