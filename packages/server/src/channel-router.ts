@@ -54,6 +54,22 @@ interface StreamState {
   flushTimer: ReturnType<typeof setTimeout> | null;
 }
 
+/** Per-identity state for sequential AskUserQuestion interaction */
+interface PendingQuestionState {
+  sessionId: string;
+  requestId: string;
+  questions: Array<{
+    question: string;
+    header: string;
+    options: Array<{ label: string; description: string }>;
+    multiSelect: boolean;
+  }>;
+  currentIndex: number;
+  answers: Record<string, string>;
+  /** For multi-select: tracks toggled option indices for current question */
+  multiSelectToggled: Set<number>;
+}
+
 export class ChannelRouterImpl implements ChannelRouter {
   private providers = new Map<string, ChannelProvider>();
 
@@ -68,6 +84,9 @@ export class ChannelRouterImpl implements ChannelRouter {
 
   /** Track message origin per session turn: 'web' or 'im' */
   private messageOriginBySession = new Map<string, 'web' | 'im'>();
+
+  /** Per-identity state for sequential AskUserQuestion interaction */
+  private pendingQuestions = new Map<string, PendingQuestionState>();
 
   constructor(
     private sessionManager: SessionManager,
@@ -624,26 +643,43 @@ export class ChannelRouterImpl implements ChannelRouter {
         break;
       }
 
-      // ── control: approval card ──
+      // ── control: approval card or question card ──
       case 'control': {
         const content = msg.content as Record<string, unknown>;
         const toolName = (content.toolName as string) ?? 'unknown';
         const toolInput = content.toolInput as Record<string, unknown> | undefined;
         const requestId = content.requestId as string;
-        const inputPreview = toolInput ? JSON.stringify(toolInput).slice(0, 200) : '';
-        const taskId = `ap_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+        const questions = content.questions as PendingQuestionState['questions'] | undefined;
 
-        const formatted = `**【${sessionName}】🔒 工具审批: \`${toolName}\`**\n> ${inputPreview}`;
+        if (questions && questions.length > 0) {
+          // AskUserQuestion — start sequential question interaction
+          const state: PendingQuestionState = {
+            sessionId,
+            requestId,
+            questions,
+            currentIndex: 0,
+            answers: {},
+            multiSelectToggled: new Set(),
+          };
+          this.pendingQuestions.set(identityKey, state);
+          this.sendQuestionToIM(identityKey, provider, identity, state);
+        } else {
+          // Regular tool approval — Allow/Deny buttons
+          const inputPreview = toolInput ? JSON.stringify(toolInput).slice(0, 200) : '';
+          const taskId = `ap_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
 
-        provider.sendMessage({
-          identity,
-          text: formatted,
-          kind: 'approval',
-          actions: [
-            { label: '✅ 允许', callbackData: `approve:${sessionId}:${requestId}:${taskId}` },
-            { label: '❌ 拒绝', callbackData: `deny:${sessionId}:${requestId}:${taskId}` },
-          ],
-        }).catch((err) => console.error('[ChannelRouter] approval send error:', err));
+          const formatted = `**【${sessionName}】🔒 工具审批: \`${toolName}\`**\n> ${inputPreview}`;
+
+          provider.sendMessage({
+            identity,
+            text: formatted,
+            kind: 'approval',
+            actions: [
+              { label: '✅ 允许', callbackData: `approve:${sessionId}:${requestId}:${taskId}` },
+              { label: '❌ 拒绝', callbackData: `deny:${sessionId}:${requestId}:${taskId}` },
+            ],
+          }).catch((err) => console.error('[ChannelRouter] approval send error:', err));
+        }
         break;
       }
 
@@ -730,26 +766,43 @@ export class ChannelRouterImpl implements ChannelRouter {
       peerDisplayName: bindingRow.peer_display_name ?? undefined,
     };
 
-    // Send approval card
     const content = msg.content as Record<string, unknown>;
     const toolName = (content.toolName as string) ?? 'unknown';
     const toolInput = content.toolInput as Record<string, unknown> | undefined;
     const requestId = content.requestId as string;
-    const inputPreview = toolInput ? JSON.stringify(toolInput).slice(0, 200) : '';
+    const questions = content.questions as PendingQuestionState['questions'] | undefined;
     const sessionName = this.getSessionDisplayName(sessionId);
-    const taskId = `ap_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
 
-    const formatted = `**【${sessionName}】🔒 工具审批: \`${toolName}\`**\n> ${inputPreview}`;
+    if (questions && questions.length > 0) {
+      // AskUserQuestion — start sequential interaction
+      const identityKey = toIdentityKey(identity);
+      const state: PendingQuestionState = {
+        sessionId,
+        requestId,
+        questions,
+        currentIndex: 0,
+        answers: {},
+        multiSelectToggled: new Set(),
+      };
+      this.pendingQuestions.set(identityKey, state);
+      this.sendQuestionToIM(identityKey, provider, identity, state);
+    } else {
+      // Regular approval — Allow/Deny buttons
+      const inputPreview = toolInput ? JSON.stringify(toolInput).slice(0, 200) : '';
+      const taskId = `ap_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
 
-    provider.sendMessage({
-      identity,
-      text: formatted,
-      kind: 'approval',
-      actions: [
-        { label: '✅ 允许', callbackData: `approve:${sessionId}:${requestId}:${taskId}` },
-        { label: '❌ 拒绝', callbackData: `deny:${sessionId}:${requestId}:${taskId}` },
-      ],
-    }).catch((err) => console.error('[ChannelRouter] approval IM push error:', err));
+      const formatted = `**【${sessionName}】🔒 工具审批: \`${toolName}\`**\n> ${inputPreview}`;
+
+      provider.sendMessage({
+        identity,
+        text: formatted,
+        kind: 'approval',
+        actions: [
+          { label: '✅ 允许', callbackData: `approve:${sessionId}:${requestId}:${taskId}` },
+          { label: '❌ 拒绝', callbackData: `deny:${sessionId}:${requestId}:${taskId}` },
+        ],
+      }).catch((err) => console.error('[ChannelRouter] approval IM push error:', err));
+    }
   }
 
   // ─── Response Binding Resolution ─────────────────────────────────
@@ -925,9 +978,134 @@ export class ChannelRouterImpl implements ChannelRouter {
     return binding.active_session_id ?? binding.target;
   }
 
+  /** Send one question from a pending AskUserQuestion sequence to IM */
+  private sendQuestionToIM(
+    identityKey: string,
+    provider: ChannelProvider,
+    identity: { channelName: string; accountId: string; peerId: string; peerDisplayName?: string },
+    state: PendingQuestionState,
+  ): void {
+    const q = state.questions[state.currentIndex];
+    const questionNum = state.questions.length > 1
+      ? ` (${state.currentIndex + 1}/${state.questions.length})`
+      : '';
+
+    const optionLines = q.options.map((opt, i) => {
+      const toggled = state.multiSelectToggled.has(i);
+      const prefix = q.multiSelect ? (toggled ? '☑️' : '⬜') : `${i + 1}️⃣`;
+      return `${prefix} **${opt.label}** — ${opt.description}`;
+    }).join('\n');
+
+    const header = `📋 **${q.header}**${questionNum}\n${q.question}`;
+    const text = `${header}\n\n${optionLines}`;
+
+    const actions = q.options.map((opt, i) => ({
+      label: q.multiSelect
+        ? `${state.multiSelectToggled.has(i) ? '☑' : '⬜'} ${opt.label}`
+        : opt.label,
+      callbackData: q.multiSelect
+        ? `askt:${state.sessionId}:${state.requestId}:${state.currentIndex}:${i}`
+        : `askq:${state.sessionId}:${state.requestId}:${state.currentIndex}:${i}`,
+    }));
+
+    // For multi-select, add a confirm button
+    if (q.multiSelect && state.multiSelectToggled.size > 0) {
+      actions.push({
+        label: '✅ 确认',
+        callbackData: `askc:${state.sessionId}:${state.requestId}:${state.currentIndex}`,
+      });
+    }
+
+    provider.sendMessage({
+      identity,
+      text,
+      kind: 'approval',
+      actions,
+    }).catch((err) => console.error('[ChannelRouter] question send error:', err));
+  }
+
+  /** Advance to next question or submit all answers */
+  private advanceQuestion(
+    identityKey: string,
+    identity: { channelName: string; accountId: string; peerId: string; peerDisplayName?: string },
+    state: PendingQuestionState,
+  ): void {
+    state.currentIndex++;
+
+    if (state.currentIndex >= state.questions.length) {
+      // All questions answered — submit
+      this.pendingQuestions.delete(identityKey);
+      console.log(`[ChannelRouter] AskUserQuestion complete for ${identityKey}:`, state.answers);
+      try {
+        this.sessionManager.respondControl(state.sessionId, state.requestId, 'allow', { answers: state.answers });
+      } catch (err) {
+        console.error('[ChannelRouter] AskUserQuestion respondControl failed:', err);
+        this.sendToChannel(identity, `⚠️ 提交回答失败: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } else {
+      // Send next question
+      state.multiSelectToggled.clear();
+      const provider = this.providers.get(`${identity.channelName}:${identity.accountId}`);
+      if (provider) {
+        this.sendQuestionToIM(identityKey, provider, identity, state);
+      }
+    }
+  }
+
   private async handleCallback(callbackData: string, identity: InboundChannelMessage['identity']): Promise<void> {
-    // Format: "approve:sessionId:requestId:taskId" or "deny:sessionId:requestId:taskId"
+    const identityKey = toIdentityKey(identity);
     const parts = callbackData.split(':');
+
+    // ── AskUserQuestion callbacks ──
+    if (parts[0] === 'askq' || parts[0] === 'askt' || parts[0] === 'askc') {
+      const state = this.pendingQuestions.get(identityKey);
+      if (!state) {
+        await this.sendToChannel(identity, '⚠️ 该问答已过期。');
+        return;
+      }
+
+      const [action, , , questionIndexStr, optionIndexStr] = parts;
+      const questionIndex = parseInt(questionIndexStr, 10);
+      const q = state.questions[questionIndex];
+
+      if (action === 'askq') {
+        // Single-select: record answer and advance
+        const optionIndex = parseInt(optionIndexStr, 10);
+        state.answers[String(questionIndex)] = q.options[optionIndex].label;
+        await this.sendToChannel(identity, `✅ ${q.header}: **${q.options[optionIndex].label}**`);
+        this.advanceQuestion(identityKey, identity, state);
+      } else if (action === 'askt') {
+        // Multi-select toggle
+        const optionIndex = parseInt(optionIndexStr, 10);
+        if (state.multiSelectToggled.has(optionIndex)) {
+          state.multiSelectToggled.delete(optionIndex);
+        } else {
+          state.multiSelectToggled.add(optionIndex);
+        }
+        // Re-send the question with updated toggle state
+        const provider = this.providers.get(`${identity.channelName}:${identity.accountId}`);
+        if (provider) {
+          this.sendQuestionToIM(identityKey, provider, identity, state);
+        }
+      } else if (action === 'askc') {
+        // Multi-select confirm
+        if (state.multiSelectToggled.size === 0) {
+          await this.sendToChannel(identity, '⚠️ 请至少选择一个选项。');
+          return;
+        }
+        const selectedLabels = Array.from(state.multiSelectToggled)
+          .sort((a, b) => a - b)
+          .map((i) => q.options[i].label);
+        state.answers[String(questionIndex)] = selectedLabels.join(',');
+        state.multiSelectToggled.clear();
+        await this.sendToChannel(identity, `✅ ${q.header}: **${selectedLabels.join(', ')}**`);
+        this.advanceQuestion(identityKey, identity, state);
+      }
+      return;
+    }
+
+    // ── Regular approve/deny callbacks ──
+    // Format: "approve:sessionId:requestId:taskId" or "deny:sessionId:requestId:taskId"
     if (parts.length < 3) return;
 
     const [action, origSessionId, requestId, taskId] = parts;
@@ -937,14 +1115,10 @@ export class ChannelRouterImpl implements ChannelRouter {
     console.log(`[ChannelRouter] Callback: ${action} session=${origSessionId} request=${requestId} task=${taskId}`);
 
     try {
-      // Try with the original sessionId first; if it fails (session ID may have
-      // been synced to a new ID), fall back to the binding's active_session_id
       let resolvedSessionId = origSessionId;
       try {
         this.sessionManager.respondControl(resolvedSessionId, requestId, decision as 'allow' | 'deny');
       } catch {
-        // Session ID might have changed — try the binding's current active session
-        const identityKey = toIdentityKey(identity);
         const binding = getBinding(this.db, identityKey);
         if (binding?.active_session_id && binding.active_session_id !== origSessionId) {
           resolvedSessionId = binding.active_session_id;
@@ -955,7 +1129,6 @@ export class ChannelRouterImpl implements ChannelRouter {
         }
       }
 
-      // Reply with result text
       await this.sendToChannel(identity, resultText);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
