@@ -482,10 +482,11 @@ export class SessionManager {
     sessionId: string,
     requestId: string,
     decision: ControlDecision,
+    payload?: Record<string, unknown>,
   ): void {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`Session "${sessionId}" not found`);
-    session.process.respondControl(requestId, decision);
+    session.process.respondControl(requestId, decision, payload);
     // Restore status from awaiting_approval to running
     if (session.status === 'awaiting_approval') {
       session.status = 'running';

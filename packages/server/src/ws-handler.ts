@@ -27,6 +27,12 @@ export function handleWebSocket(
             sessionId,
             toolName: content.toolName as string,
             toolInput: content.toolInput as Record<string, unknown>,
+            questions: content.questions as Array<{
+              question: string;
+              header: string;
+              options: Array<{ label: string; description: string }>;
+              multiSelect: boolean;
+            }> | undefined,
           },
         });
       } else {
@@ -134,6 +140,7 @@ export function handleWebSocket(
             data.sessionId,
             data.requestId,
             data.decision,
+            (data as { payload?: Record<string, unknown> }).payload,
           );
           break;
         }
