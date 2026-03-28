@@ -2,13 +2,14 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useLobbyStore } from '../stores/lobby-store';
 import MessageBubble from './MessageBubble';
 import ControlCard from './ControlCard';
+import QuestionCard from './QuestionCard';
 import TypingIndicator from './TypingIndicator';
 
 const EMPTY_MESSAGES: never[] = [];
 
 interface Props {
   sessionId: string;
-  onControlRespond: (sessionId: string, requestId: string, decision: 'allow' | 'deny') => void;
+  onControlRespond: (sessionId: string, requestId: string, decision: 'allow' | 'deny', payload?: Record<string, unknown>) => void;
   onChoiceSelect?: (label: string) => void;
 }
 
@@ -85,12 +86,22 @@ export default function MessageList({ sessionId, onControlRespond, onChoiceSelec
       ))}
 
       {pendingControl && (
-        <ControlCard
-          request={pendingControl}
-          onRespond={(requestId, decision) =>
-            onControlRespond(sessionId, requestId, decision)
-          }
-        />
+        pendingControl.questions && pendingControl.questions.length > 0 ? (
+          <QuestionCard
+            requestId={pendingControl.requestId}
+            questions={pendingControl.questions}
+            onSubmit={(requestId, decision, payload) =>
+              onControlRespond(sessionId, requestId, decision, payload)
+            }
+          />
+        ) : (
+          <ControlCard
+            request={pendingControl}
+            onRespond={(requestId, decision) =>
+              onControlRespond(sessionId, requestId, decision)
+            }
+          />
+        )
       )}
 
       {isTyping && <TypingIndicator />}
