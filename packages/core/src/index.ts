@@ -3,6 +3,7 @@ export type {
   SpawnOptions,
   ResumeOptions,
   ControlDecision,
+  ControlQuestion,
   ControlRequest,
   AgentProcess,
   SessionSummary,

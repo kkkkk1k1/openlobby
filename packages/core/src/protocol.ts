@@ -27,6 +27,7 @@ export type ClientMessage =
       sessionId: string;
       requestId: string;
       decision: ControlDecision;
+      payload?: Record<string, unknown>;
     }
   | { type: 'session.discover'; cwd?: string }
   | {

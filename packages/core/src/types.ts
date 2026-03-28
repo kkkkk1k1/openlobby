@@ -49,11 +49,21 @@ export interface ResumeOptions extends Partial<SpawnOptions> {
 
 export type ControlDecision = 'allow' | 'deny';
 
+/** Structured question for AskUserQuestion tool */
+export interface ControlQuestion {
+  question: string;
+  header: string;
+  options: Array<{ label: string; description: string }>;
+  multiSelect: boolean;
+}
+
 export interface ControlRequest {
   requestId: string;
   sessionId: string;
   toolName: string;
   toolInput: Record<string, unknown>;
+  /** Structured questions when toolName === 'AskUserQuestion' */
+  questions?: ControlQuestion[];
 }
 
 /** 代表一个运行中的 CLI 会话 */
@@ -63,7 +73,7 @@ export interface AgentProcess extends EventEmitter {
   status: 'running' | 'idle' | 'stopped' | 'error' | 'awaiting_approval';
 
   sendMessage(content: string): void;
-  respondControl(requestId: string, decision: ControlDecision): void;
+  respondControl(requestId: string, decision: ControlDecision, payload?: Record<string, unknown>): void;
   updateOptions(opts: Partial<SpawnOptions>): void;
   setPlanMode?(enabled: boolean): void;
   kill(): void;
