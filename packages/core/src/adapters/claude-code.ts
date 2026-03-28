@@ -353,11 +353,22 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
     const requestId = randomUUID();
     console.log('[ClaudeCode] Tool approval requested:', toolName, 'toolUseID:', toolUseID);
 
+    // Extract structured questions for AskUserQuestion tool
+    const questions = toolName === 'AskUserQuestion' && Array.isArray(toolInput.questions)
+      ? (toolInput.questions as Array<{
+          question: string;
+          header: string;
+          options: Array<{ label: string; description: string }>;
+          multiSelect: boolean;
+        }>)
+      : undefined;
+
     const controlMsg = makeLobbyMessage(this.sessionId, 'control', {
       requestId,
       toolName,
       toolInput,
       toolUseID,
+      questions,
     });
     this.emit('message', controlMsg);
 
@@ -392,18 +403,22 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
     }
   }
 
-  respondControl(requestId: string, decision: ControlDecision): void {
+  respondControl(requestId: string, decision: ControlDecision, payload?: Record<string, unknown>): void {
     const pending = this.pendingControls.get(requestId);
     if (!pending) {
       console.warn('[ClaudeCode] No pending control for:', requestId);
       return;
     }
 
-    console.log('[ClaudeCode] Control response:', requestId, decision);
+    console.log('[ClaudeCode] Control response:', requestId, decision, payload ? 'with payload' : '');
     this.pendingControls.delete(requestId);
 
     if (decision === 'allow') {
-      pending.resolve({ behavior: 'allow', updatedInput: pending.toolInput });
+      // If payload contains answers (from AskUserQuestion), inject into updatedInput
+      const updatedInput = payload?.answers
+        ? { ...pending.toolInput, answers: payload.answers }
+        : pending.toolInput;
+      pending.resolve({ behavior: 'allow', updatedInput });
     } else {
       pending.resolve({ behavior: 'deny', message: 'User denied the tool', interrupt: true });
     }
