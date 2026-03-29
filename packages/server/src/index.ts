@@ -26,7 +26,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export async function createServer(options: ServerOptions = {}) {
   const port = options.port ?? parseInt(process.env.PORT ?? '3001', 10);
-  const mcpApiPort = options.mcpApiPort ?? parseInt(process.env.MCP_API_PORT ?? '3002', 10);
+  const mcpApiPort = options.mcpApiPort ?? (parseInt(process.env.OPENLOBBY_MCP_PORT ?? '', 10) || (port + 1));
   const app = Fastify({ logger: true });
 
   await app.register(websocket);
