@@ -36,6 +36,7 @@ import {
   findSessionByIdOrName,
   type SlashCommandContext,
 } from './slash-commands.js';
+import { LM_WELCOME_TEXT } from './lm-welcome.js';
 
 /** Throttle interval for <think> stream updates */
 const STREAM_THROTTLE_MS = 800;
@@ -968,6 +969,18 @@ export class ChannelRouterImpl implements ChannelRouter {
     };
     upsertBinding(this.db, row);
     console.log(`[ChannelRouter] Auto-created binding for ${identityKey} → lobby-manager`);
+
+    // Send LM welcome message to new IM user
+    const provider = this.providers.get(`${identity.channelName}:${identity.accountId}`);
+    if (provider) {
+      provider.sendMessage({
+        identity,
+        text: LM_WELCOME_TEXT,
+        kind: 'message',
+        format: 'markdown',
+      }).catch((err) => console.error('[ChannelRouter] welcome message error:', err));
+    }
+
     return row;
   }
 

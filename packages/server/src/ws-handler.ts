@@ -4,6 +4,7 @@ import type { SessionManager } from './session-manager.js';
 import type { LobbyManager } from './lobby-manager.js';
 import type { ChannelRouterImpl } from './channel-router.js';
 import { handleSlashCommand } from './slash-commands.js';
+import { LM_WELCOME_TEXT } from './lm-welcome.js';
 
 export function handleWebSocket(
   socket: WebSocket,
@@ -57,11 +58,24 @@ export function handleWebSocket(
   });
 
   // Notify client of Lobby Manager availability and session ID
+  const lmSessionIdForWelcome = lobbyManager?.getSessionId();
   send({
     type: 'lm.status',
     available: lobbyManager?.isAvailable() ?? false,
-    sessionId: lobbyManager?.getSessionId() ?? undefined,
+    sessionId: lmSessionIdForWelcome ?? undefined,
   });
+
+  // Send welcome message to LM session on first WebSocket connection
+  if (lmSessionIdForWelcome) {
+    const welcomeMsg: LobbyMessage = {
+      id: `welcome-${listenerId}`,
+      sessionId: lmSessionIdForWelcome,
+      timestamp: Date.now(),
+      type: 'assistant',
+      content: LM_WELCOME_TEXT,
+    };
+    send({ type: 'message', sessionId: lmSessionIdForWelcome, message: welcomeMsg });
+  }
 
   socket.on('message', async (raw: Buffer | string) => {
     let data: ClientMessage;
