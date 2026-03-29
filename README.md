@@ -10,6 +10,8 @@
 
 Manage Claude Code and Codex CLI sessions in an IM-style web UI. OpenLobby lets you run, monitor, and switch between multiple AI coding agent sessions from a single browser tab — think of it as a "chat app" for your coding agents.
 
+**Built for power users of AI coding CLIs.** If you run Claude Code or Codex CLI daily and find yourself juggling multiple terminal sessions, losing track of which agent is doing what, or wishing you could check on a long-running task from your phone — OpenLobby is for you. Deploy it on a server, access it from anywhere via browser or IM, and keep all your agent sessions running 24/7 without keeping a terminal open.
+
 ## Why OpenLobby?
 
 **Run multiple AI agents in parallel, manage them all from one place.**
