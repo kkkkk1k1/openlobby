@@ -53,6 +53,12 @@ export class TelegramBotProvider implements ChannelProvider {
   private typingTimers = new Map<string, ReturnType<typeof setInterval>>();
   /** Approval message ID cache: taskId → { chatId, messageId } for updateCard */
   private approvalMessageIds = new Map<string, { chatId: string; messageId: number }>();
+  /**
+   * Callback data shortener: Telegram limits callback_data to 64 bytes.
+   * We map short keys (cb_xxxx, 7 chars) → original callbackData strings.
+   */
+  private callbackMap = new Map<string, string>();
+  private callbackCounter = 0;
 
   /** Webhook config (if using webhook mode) */
   private webhookUrl?: string;
@@ -401,6 +407,8 @@ export class TelegramBotProvider implements ChannelProvider {
     await this.api.answerCallbackQuery(query.id, { text: '处理中...' });
 
     if (query.data) {
+      // Resolve possibly-shortened callback data back to original
+      const resolvedData = this.resolveCallback(query.data);
       this.router.handleInbound({
         externalMessageId: query.id,
         identity: {
@@ -411,7 +419,7 @@ export class TelegramBotProvider implements ChannelProvider {
         },
         text: '',
         timestamp: Date.now(),
-        callbackData: query.data,
+        callbackData: resolvedData,
         raw: query,
       }).catch((err) => this.log('error', 'callback handleInbound error:', err));
     }
@@ -458,6 +466,7 @@ export class TelegramBotProvider implements ChannelProvider {
     const rows: Array<Array<{ text: string; callback_data: string }>> = [];
     let currentRow: Array<{ text: string; callback_data: string }> = [];
     for (const action of actions) {
+      const cbData = this.shortenCallback(action.callbackData);
       // Confirm button (✅) and Allow/Deny buttons go on their own row
       const isSpecial = action.callbackData.startsWith('askc:')
         || action.callbackData.startsWith('approve:')
@@ -467,9 +476,9 @@ export class TelegramBotProvider implements ChannelProvider {
           rows.push(currentRow);
           currentRow = [];
         }
-        rows.push([{ text: action.label, callback_data: action.callbackData }]);
+        rows.push([{ text: action.label, callback_data: cbData }]);
       } else {
-        currentRow.push({ text: action.label, callback_data: action.callbackData });
+        currentRow.push({ text: action.label, callback_data: cbData });
         if (currentRow.length >= 3) {
           rows.push(currentRow);
           currentRow = [];
@@ -548,6 +557,23 @@ export class TelegramBotProvider implements ChannelProvider {
       this.log('error', 'getFile error:', err);
     }
     return null;
+  }
+
+  // ─── Callback Data Shortener (Telegram 64-byte limit) ────────
+
+  /** Shorten a callbackData string to fit Telegram's 64-byte limit */
+  private shortenCallback(data: string): string {
+    if (data.length <= 64) return data;
+    const key = `cb_${(this.callbackCounter++).toString(36)}`;
+    this.callbackMap.set(key, data);
+    // Auto-cleanup after 10 minutes
+    setTimeout(() => this.callbackMap.delete(key), 10 * 60 * 1000);
+    return key;
+  }
+
+  /** Resolve a possibly-shortened callback key back to original data */
+  private resolveCallback(data: string): string {
+    return this.callbackMap.get(data) ?? data;
   }
 
   // ─── Dedup ─────────────────────────────────────────────────────
