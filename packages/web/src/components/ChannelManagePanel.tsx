@@ -157,23 +157,62 @@ export default function ChannelManagePanel({ onClose }: Props) {
   );
 }
 
+/** Per-channel credential field definitions */
+const CHANNEL_FIELDS: Record<string, Array<{ key: string; label: string; required: boolean; type: string; placeholder?: string }>> = {
+  wecom: [
+    { key: 'corpId', label: 'Corp ID', required: true, type: 'text', placeholder: 'ww1234567890' },
+    { key: 'agentId', label: 'Agent ID', required: true, type: 'text', placeholder: 'aibxxxxxxxx' },
+    { key: 'secret', label: 'Secret', required: true, type: 'password' },
+  ],
+  telegram: [
+    { key: 'botToken', label: 'Bot Token', required: true, type: 'password', placeholder: '123456:ABC-DEF...' },
+    { key: 'webhookUrl', label: 'Webhook URL (optional)', required: false, type: 'text', placeholder: 'https://example.com/webhook/telegram/...' },
+    { key: 'webhookSecret', label: 'Webhook Secret (optional)', required: false, type: 'password' },
+  ],
+};
+
+const CHANNEL_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'wecom', label: 'WeCom (Enterprise WeChat)' },
+  { value: 'telegram', label: 'Telegram' },
+];
+
 function AddProviderForm({ onDone }: { onDone: () => void }) {
   const [channelName, setChannelName] = useState('wecom');
   const [accountId, setAccountId] = useState('');
-  const [botId, setBotId] = useState('');
-  const [secret, setSecret] = useState('');
+  const [credentials, setCredentials] = useState<Record<string, string>>({});
+
+  const fields = CHANNEL_FIELDS[channelName] ?? [];
+
+  const updateCredential = (key: string, value: string) => {
+    setCredentials((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleChannelChange = (name: string) => {
+    setChannelName(name);
+    setCredentials({});
+    setAccountId('');
+  };
+
+  const isValid = () => {
+    if (!accountId.trim()) return false;
+    return fields.filter((f) => f.required).every((f) => credentials[f.key]?.trim());
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!accountId.trim() || !botId.trim() || !secret.trim()) return;
+    if (!isValid()) return;
+
+    // Build credentials object — only include non-empty values
+    const creds: Record<string, string> = {};
+    for (const field of fields) {
+      const val = credentials[field.key]?.trim();
+      if (val) creds[field.key] = val;
+    }
 
     wsAddProvider({
       channelName,
       accountId: accountId.trim(),
-      credentials: {
-        botId: botId.trim(),
-        secret: secret.trim(),
-      },
+      credentials: creds,
       enabled: true,
     });
     onDone();
@@ -185,10 +224,12 @@ function AddProviderForm({ onDone }: { onDone: () => void }) {
         <label className="block text-xs text-gray-400 mb-1">Channel Type</label>
         <select
           value={channelName}
-          onChange={(e) => setChannelName(e.target.value)}
+          onChange={(e) => handleChannelChange(e.target.value)}
           className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-100"
         >
-          <option value="wecom">WeCom (Enterprise WeChat)</option>
+          {CHANNEL_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
         </select>
       </div>
 
@@ -203,26 +244,18 @@ function AddProviderForm({ onDone }: { onDone: () => void }) {
         />
       </div>
 
-      <div>
-        <label className="block text-xs text-gray-400 mb-1">Bot ID</label>
-        <input
-          type="text"
-          value={botId}
-          onChange={(e) => setBotId(e.target.value)}
-          placeholder="aibxxxxxxxx"
-          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-100"
-        />
-      </div>
-
-      <div>
-        <label className="block text-xs text-gray-400 mb-1">Secret</label>
-        <input
-          type="password"
-          value={secret}
-          onChange={(e) => setSecret(e.target.value)}
-          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-100"
-        />
-      </div>
+      {fields.map((field) => (
+        <div key={field.key}>
+          <label className="block text-xs text-gray-400 mb-1">{field.label}</label>
+          <input
+            type={field.type}
+            value={credentials[field.key] ?? ''}
+            onChange={(e) => updateCredential(field.key, e.target.value)}
+            placeholder={field.placeholder}
+            className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-100"
+          />
+        </div>
+      ))}
 
       <div className="flex gap-2 justify-end">
         <button
@@ -234,7 +267,12 @@ function AddProviderForm({ onDone }: { onDone: () => void }) {
         </button>
         <button
           type="submit"
-          className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-500"
+          disabled={!isValid()}
+          className={`px-3 py-1.5 rounded text-sm ${
+            isValid()
+              ? 'bg-blue-600 text-white hover:bg-blue-500'
+              : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+          }`}
         >
           Add
         </button>
