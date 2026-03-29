@@ -43,7 +43,7 @@ function textResult(data: unknown): { content: Array<{ type: 'text'; text: strin
 async function main() {
   const server = new McpServer({
     name: 'openlobby',
-    version: '0.3.0',
+    version: '0.3.1',
   });
 
   // --- Tool: lobby_list_sessions ---

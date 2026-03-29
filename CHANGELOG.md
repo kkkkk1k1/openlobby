@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.3.1 (2026-03-29)
+
+### Features
+
+- **LM welcome message** — First-time Web/IM users see a guided introduction with features, examples, and slash commands
+- **Dynamic channel provider form** — Web UI now supports adding Telegram providers (and future channels) with per-channel credential fields
+
+### Bug Fixes
+
+- **Telegram callback_data overflow** — Callback data exceeded Telegram's 64-byte limit, causing buttons to silently fall back to plain text. Added callback shortener with auto-cleanup.
+- **Telegram button layout** — Option buttons now render horizontally (max 3/row), special buttons on their own row
+- **Telegram webhook health** — Webhook mode now correctly reports healthy status after registration
+- **Telegram updateCard mapping** — Approval card message IDs are cached for proper card updates
+- **Telegram typing timer key** — Normalized chatId to string for consistent Map lookups
+- **Telegram not importable** — Added `openlobby-channel-telegram` as optional dependency of server package
+
 ## v0.3.0 (2026-03-29)
 
 ### Features
