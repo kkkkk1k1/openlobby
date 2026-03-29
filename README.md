@@ -21,6 +21,7 @@ Manage Claude Code and Codex CLI sessions in an IM-style web UI. OpenLobby lets 
 - **Lobby Manager (LM)** — A dedicated meta-agent that only handles session routing and management. It never touches your code or answers your questions — it just creates, finds, and navigates you to the right session. Every session's context stays clean and separate.
 - **Single IM, multiple sessions** — Bind to WeCom or Telegram and switch sessions within one chat thread. No need for a separate bot per project. Use `/goto`, `/add`, `/exit` to navigate, or let the Lobby Manager route you automatically.
 - **Interactive approval cards** — Tool execution requires your approval. Rich cards show tool name, input, and allow/deny buttons — on both Web and IM. For `AskUserQuestion` calls, question cards render single-select and multi-select options.
+- **Same security as local CLI** — Each session's permission mode is fully configurable (`default`, `plan`, `bypassPermissions`). In default mode, every file write, shell command, and tool call requires your explicit approval — exactly the same as running the CLI in your terminal. The difference is you can now approve from anywhere: your browser, your phone, or any IM client.
 
 ## Features
 
