@@ -10,6 +10,8 @@ import type {
 } from '@openlobby/core';
 import { toIdentityKey } from '@openlobby/core';
 import type Database from 'better-sqlite3';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join, extname } from 'node:path';
 import type { SessionManager } from './session-manager.js';
 import type { LobbyManager } from './lobby-manager.js';
 import {
@@ -275,20 +277,58 @@ export class ChannelRouterImpl implements ChannelRouter {
     }
 
     try {
-      // Build message text with attachments and quote context
+      // Download IM attachments to local .openlobby-cache (same as Web upload)
       let messageText = msg.text;
       if (msg.attachments && msg.attachments.length > 0) {
-        const attachmentLines = msg.attachments.map((a) => {
-          const label = a.type === 'image' ? '图片'
-            : a.type === 'voice' ? '语音'
-            : '文件';
-          const name = a.filename ? ` ${a.filename}` : '';
-          const url = a.url ? ` ${a.url}` : (a.base64 ? ' [base64]' : '');
-          return `[附件: ${label}${name}${url}]`;
-        });
-        messageText = messageText
-          ? `${messageText}\n\n${attachmentLines.join('\n')}`
-          : attachmentLines.join('\n');
+        const sessionInfo = this.sessionManager.getSessionInfo(sessionId);
+        const cwd = sessionInfo?.cwd;
+        const downloadedPaths: string[] = [];
+
+        for (const a of msg.attachments) {
+          if (!a.url && !a.base64) continue;
+          try {
+            let buffer: Buffer;
+            let ext: string;
+
+            if (a.url) {
+              const res = await fetch(a.url);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              buffer = Buffer.from(await res.arrayBuffer());
+              // Determine extension from filename, mime type, or URL
+              ext = a.filename ? extname(a.filename)
+                : a.mimeType ? (`.${a.mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'bin'}`)
+                : extname(new URL(a.url).pathname) || '.bin';
+            } else {
+              buffer = Buffer.from(a.base64!, 'base64');
+              ext = a.filename ? extname(a.filename) : '.bin';
+            }
+
+            if (cwd) {
+              const cacheDir = join(cwd, '.openlobby-cache');
+              mkdirSync(cacheDir, { recursive: true });
+              const savedName = `${randomUUID()}${ext}`;
+              const savedPath = join(cacheDir, savedName);
+              writeFileSync(savedPath, buffer);
+              downloadedPaths.push(savedPath);
+              console.log(`[ChannelRouter] Attachment saved: ${savedPath} (${buffer.length} bytes)`);
+            }
+          } catch (err) {
+            console.error('[ChannelRouter] Failed to download attachment:', err);
+            // Fallback: append URL as text
+            const label = a.type === 'image' ? '图片' : a.type === 'voice' ? '语音' : '文件';
+            const name = a.filename ? ` ${a.filename}` : '';
+            downloadedPaths.push(`[附件下载失败: ${label}${name} ${a.url ?? ''}]`);
+          }
+        }
+
+        if (downloadedPaths.length > 0) {
+          const attachmentText = downloadedPaths
+            .map((p) => p.startsWith('[') ? p : `[Attached: ${p}]`)
+            .join('\n');
+          messageText = messageText
+            ? `${messageText}\n\n${attachmentText}`
+            : attachmentText;
+        }
       }
       await this.sessionManager.sendMessage(sessionId, messageText);
       updateBindingActivity(this.db, identityKey);
