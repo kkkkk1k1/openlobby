@@ -49,8 +49,10 @@ export class TelegramBotProvider implements ChannelProvider {
   private seenMessages = new Map<string, number>();
   /** Cleanup timer */
   private dedupTimer: ReturnType<typeof setInterval> | null = null;
-  /** Typing action keep-alive timers: chatId → timer */
-  private typingTimers = new Map<number | string, ReturnType<typeof setInterval>>();
+  /** Typing action keep-alive timers: chatId (string) → timer */
+  private typingTimers = new Map<string, ReturnType<typeof setInterval>>();
+  /** Approval message ID cache: taskId → { chatId, messageId } for updateCard */
+  private approvalMessageIds = new Map<string, { chatId: string; messageId: number }>();
 
   /** Webhook config (if using webhook mode) */
   private webhookUrl?: string;
@@ -102,6 +104,7 @@ export class TelegramBotProvider implements ChannelProvider {
         secret_token: this.webhookSecret,
         allowed_updates: ['message', 'callback_query', 'edited_message'],
       });
+      this.healthy = true;
       this.log('info', `Webhook set: ${this.webhookUrl}`);
     } else {
       // Long-polling mode: delete any existing webhook, then start polling
@@ -174,17 +177,16 @@ export class TelegramBotProvider implements ChannelProvider {
   }
 
   async updateCard(peerId: string, taskId: string, resultText: string): Promise<void> {
-    // taskId format: "chatId:messageId"
-    const parts = taskId.split(':');
-    if (parts.length < 2) {
-      this.log('warn', `Invalid card taskId: ${taskId}`);
+    // Look up the real chatId:messageId from our cache
+    const cached = this.approvalMessageIds.get(taskId);
+    if (!cached) {
+      this.log('warn', `No cached message ID for taskId: ${taskId}`);
       return;
     }
-    const chatId = parts[0];
-    const messageId = parseInt(parts[1], 10);
 
     try {
-      await this.api.editMessageText(chatId, messageId, resultText);
+      await this.api.editMessageText(cached.chatId, cached.messageId, resultText);
+      this.approvalMessageIds.delete(taskId);
       this.log('info', `Card updated: ${taskId} → ${resultText}`);
     } catch (err) {
       this.log('error', 'updateCard error:', err);
@@ -450,14 +452,35 @@ export class TelegramBotProvider implements ChannelProvider {
   }
 
   private async sendApprovalCard(chatId: string, msg: OutboundChannelMessage): Promise<void> {
-    const buttons: InlineKeyboardMarkup = {
-      inline_keyboard: (msg.actions ?? []).map((action) => [
-        {
-          text: action.label,
-          callback_data: action.callbackData,
-        },
-      ]),
-    };
+    const actions = msg.actions ?? [];
+
+    // Build horizontal button rows (max 3 buttons per row)
+    const rows: Array<Array<{ text: string; callback_data: string }>> = [];
+    let currentRow: Array<{ text: string; callback_data: string }> = [];
+    for (const action of actions) {
+      // Confirm button (✅) and Allow/Deny buttons go on their own row
+      const isSpecial = action.callbackData.startsWith('askc:')
+        || action.callbackData.startsWith('approve:')
+        || action.callbackData.startsWith('deny:');
+      if (isSpecial) {
+        if (currentRow.length > 0) {
+          rows.push(currentRow);
+          currentRow = [];
+        }
+        rows.push([{ text: action.label, callback_data: action.callbackData }]);
+      } else {
+        currentRow.push({ text: action.label, callback_data: action.callbackData });
+        if (currentRow.length >= 3) {
+          rows.push(currentRow);
+          currentRow = [];
+        }
+      }
+    }
+    if (currentRow.length > 0) {
+      rows.push(currentRow);
+    }
+
+    const buttons: InlineKeyboardMarkup = { inline_keyboard: rows };
 
     try {
       const sent = await this.api.sendMessage(chatId, msg.text, {
@@ -465,6 +488,19 @@ export class TelegramBotProvider implements ChannelProvider {
         disable_web_page_preview: true,
       });
       this.log('info', `Approval card sent: message_id=${sent.message_id}`);
+
+      // Cache message ID for updateCard — extract taskId from callback data
+      for (const action of actions) {
+        const parts = action.callbackData.split(':');
+        // approve:sessionId:requestId:taskId or deny:...
+        if ((parts[0] === 'approve' || parts[0] === 'deny') && parts.length >= 4) {
+          const taskId = parts[3];
+          this.approvalMessageIds.set(taskId, { chatId, messageId: sent.message_id });
+          // Auto-cleanup after 5 minutes
+          setTimeout(() => this.approvalMessageIds.delete(taskId), DEDUP_TTL_MS);
+          break;
+        }
+      }
     } catch (err) {
       this.log('error', 'sendApprovalCard error:', err);
       // Fallback: send as plain text
@@ -473,11 +509,12 @@ export class TelegramBotProvider implements ChannelProvider {
   }
 
   private async sendTypingAction(chatId: string): Promise<void> {
+    const key = String(chatId);
     try {
       await this.api.sendChatAction(chatId, 'typing');
 
       // Set up a recurring typing action (Telegram typing indicator lasts ~5 seconds)
-      if (!this.typingTimers.has(chatId)) {
+      if (!this.typingTimers.has(key)) {
         const timer = setInterval(async () => {
           try {
             await this.api.sendChatAction(chatId, 'typing');
@@ -485,7 +522,7 @@ export class TelegramBotProvider implements ChannelProvider {
             // Ignore errors for typing action
           }
         }, 4_000);
-        this.typingTimers.set(chatId, timer);
+        this.typingTimers.set(key, timer);
       }
     } catch (err) {
       this.log('error', 'sendTypingAction error:', err);
@@ -493,10 +530,11 @@ export class TelegramBotProvider implements ChannelProvider {
   }
 
   private stopTypingTimer(chatId: string | number): void {
-    const timer = this.typingTimers.get(chatId);
+    const key = String(chatId);
+    const timer = this.typingTimers.get(key);
     if (timer) {
       clearInterval(timer);
-      this.typingTimers.delete(chatId);
+      this.typingTimers.delete(key);
     }
   }
 
