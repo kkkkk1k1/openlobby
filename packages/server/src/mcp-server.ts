@@ -62,7 +62,7 @@ async function main() {
     'lobby_create_session',
     'Create a new Agentic CLI session. Directory will be auto-created if it does not exist. By default, auto-navigates the user to the new session (Web UI + IM channel switch).',
     {
-      adapter: z.enum(['claude-code', 'codex-cli']).default('claude-code').describe('CLI adapter to use (default: claude-code)'),
+      adapter: z.enum(['claude-code', 'codex-cli', 'opencode']).default('claude-code').describe('CLI adapter to use (default: claude-code)'),
       cwd: z.string().describe('Working directory for the session'),
       name: z.string().optional().describe('Display name for the session'),
       model: z.string().optional().describe('Model to use (e.g. claude-sonnet-4-5-20250514)'),
@@ -165,7 +165,7 @@ async function main() {
     'Import a discovered CLI session into OpenLobby management',
     {
       sessionId: z.string().describe('Session ID to import'),
-      adapterName: z.enum(['claude-code', 'codex-cli']).describe('Adapter that owns the session'),
+      adapterName: z.enum(['claude-code', 'codex-cli', 'opencode']).describe('Adapter that owns the session'),
       cwd: z.string().describe('Working directory of the session'),
       displayName: z.string().optional().describe('Display name for the imported session'),
       jsonlPath: z.string().optional().describe('Path to the JSONL history file'),

@@ -42,7 +42,7 @@ Step 2: The user sent a task (e.g., "处理周报", "build a todo app", "fix the
   → Found match: Present it and ask "要切换到这个会话吗？" / "Switch to this session?"
     → After user confirms: call lobby_navigate_session to switch. Do NOT send any message to the session.
   → No match: Propose creating a new session:
-    - adapter: claude-code (default)
+    - adapter: claude-code (default), codex-cli, or opencode
     - cwd: ~/.agentlobby/lobby-manager/projects/<project-name>/
     - name: auto-generated from user's intent
     - Ask user to confirm
