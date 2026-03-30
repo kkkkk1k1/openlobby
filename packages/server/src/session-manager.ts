@@ -864,8 +864,15 @@ export class SessionManager {
     const session = this.sessions.get(sessionId);
     if (!session) return;
     session.process.interrupt();
-    // Status update and broadcast are driven by adapter emit('idle')
-    // via the existing wireProcessEvents 'idle' handler.
+    // Force status to idle immediately so the UI updates.
+    // If the adapter later emits 'idle', the handler is harmless (sets idle again).
+    // Without this, interrupt on an idle process (e.g. right after /new rebuild)
+    // would never emit 'idle' and the status stays stuck at 'running'.
+    if (session.status === 'running' || session.status === 'awaiting_approval') {
+      session.status = 'idle';
+      this.persistSessionStatus(session);
+      this.broadcastSessionUpdate(session);
+    }
   }
 
   async destroySession(sessionId: string): Promise<void> {
