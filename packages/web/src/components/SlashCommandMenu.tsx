@@ -6,10 +6,20 @@ export interface SlashCommand {
   args?: string;
 }
 
-// Minimal fallback when no session is active
+// Default commands available in all sessions (lobby-level + global)
 const FALLBACK_COMMANDS: SlashCommand[] = [
+  { name: '/help', description: '显示帮助信息' },
+  { name: '/ls', description: '列出所有会话' },
+  { name: '/add', description: '创建新会话', args: '[name]' },
+  { name: '/goto', description: '切换到指定会话', args: '<id|name>' },
+  { name: '/exit', description: '返回 Lobby Manager' },
+  { name: '/stop', description: '打断当前模型回复' },
+  { name: '/new', description: '重建当前会话的 CLI 进程' },
+  { name: '/rm', description: '销毁指定会话', args: '<id|name>' },
   { name: '/plan', description: 'Toggle plan mode (read-only exploration)' },
-  { name: '/help', description: 'Show help' },
+  { name: '/msg-only', description: '仅推送回复内容' },
+  { name: '/msg-tidy', description: '工具调用折叠为摘要' },
+  { name: '/msg-total', description: '推送全部消息' },
 ];
 
 interface Props {
@@ -31,7 +41,12 @@ export function filterCommands(input: string, commands: SlashCommand[]): SlashCo
 }
 
 export default function SlashCommandMenu({ filter, selectedIndex, onSelect, commands, loading }: Props) {
-  const list = commands && commands.length > 0 ? commands : FALLBACK_COMMANDS;
+  // Always include lobby-level commands; merge with adapter commands if available.
+  // Deduplicate by name — adapter commands take precedence over fallback.
+  const adapterCmds = commands && commands.length > 0 ? commands : [];
+  const adapterNames = new Set(adapterCmds.map((c) => c.name));
+  const lobbyOnly = FALLBACK_COMMANDS.filter((c) => !adapterNames.has(c.name));
+  const list = [...adapterCmds, ...lobbyOnly];
   const filtered = filterCommands(filter, list);
   const listRef = useRef<HTMLDivElement>(null);
 
