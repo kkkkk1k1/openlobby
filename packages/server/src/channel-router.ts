@@ -383,6 +383,8 @@ export class ChannelRouterImpl implements ChannelRouter {
     switch (cmd) {
       case '/exit':
         return this.cmdExit(identityKey);
+      case '/stop':
+        return await this.cmdStop(identityKey);
       case '/info':
         return this.cmdInfo(identityKey);
       case '/bind':
@@ -446,6 +448,21 @@ export class ChannelRouterImpl implements ChannelRouter {
     this.lastSenderBySession.set(session.id, identityKey);
 
     return `✅ 已切换到会话: **${session.displayName}** (\`${session.id.slice(0, 12)}\`)`;
+  }
+
+  /** /stop — Interrupt current model generation */
+  private async cmdStop(identityKey: string): Promise<string> {
+    const binding = getBinding(this.db, identityKey);
+    const sessionId = binding?.active_session_id;
+    if (!sessionId) {
+      return '⚠️ 当前未绑定任何会话。';
+    }
+    const lmId = this.lobbyManager?.getSessionId();
+    if (sessionId === lmId) {
+      return '⚠️ Lobby Manager 无法被打断。';
+    }
+    await this.sessionManager.interruptSession(sessionId);
+    return '⏹ 已打断模型回复。';
   }
 
   /** /exit — Return to Lobby Manager */
