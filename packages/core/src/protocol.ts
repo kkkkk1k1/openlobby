@@ -50,7 +50,9 @@ export type ClientMessage =
   | { type: 'session.recover'; sessionId: string }
   | { type: 'completion.request'; sessionId: string }
   | { type: 'session.view'; sessionId: string | null }
-  | { type: 'channel.discover-plugins' };
+  | { type: 'channel.discover-plugins' }
+  | { type: 'config.get'; key: string }
+  | { type: 'config.set'; key: string; value: string };
 
 /** 后端 → 前端 */
 export type ServerMessage =
@@ -79,4 +81,5 @@ export type ServerMessage =
   | { type: 'channel.binding-updated'; binding: ChannelBinding }
   | { type: 'channel.binding-removed'; identityKey: string }
   | { type: 'completion.response'; sessionId: string; commands: AdapterCommand[]; cached?: boolean }
-  | { type: 'channel.plugins-list'; plugins: ChannelPluginInfo[] };
+  | { type: 'channel.plugins-list'; plugins: ChannelPluginInfo[] }
+  | { type: 'config.value'; key: string; value: string };

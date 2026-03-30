@@ -80,6 +80,8 @@ export interface AgentProcess extends EventEmitter {
   kill(): void;
 }
 
+export type MessageMode = 'msg-total' | 'msg-tidy' | 'msg-only';
+
 export interface SessionSummary {
   id: string;
   adapterName: string;
@@ -95,6 +97,7 @@ export interface SessionSummary {
   resumeCommand: string;
   jsonlPath?: string;
   planMode?: boolean;
+  messageMode?: MessageMode;
   /** Channel binding info (if session is bound to an IM channel) */
   channelBinding?: {
     channelName: string;
