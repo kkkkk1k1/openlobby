@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.4.1 (2026-03-31)
+
+### Features
+
+- **`/stop` 中断命令** — 三种 adapter 均实现 `interrupt()`（Claude Code 软中止、Codex CLI 子进程 kill、OpenCode SSE 重订阅），Web 端 Stop 按钮 + IM `/stop` 命令 (a2267f9..a103ce2)
+- **消息模式** — 新增 `msg-only`（仅推送回复）/ `msg-tidy`（工具调用折叠为摘要）/ `msg-total`（推送全部），支持 Web 设置面板和 IM `/msg-*` 命令 (6fd2630..e51a5cf)
+- **ToolSummaryBubble** — msg-tidy 模式下工具调用渲染为折叠的摘要气泡 (5294a7a)
+- **全局设置面板** — Web 端新增全局默认 adapter 和消息模式配置，新建会话自动继承默认值 (82dceb6, 78feec9)
+- **RoomHeader 消息模式下拉** — 会话级消息模式快速切换 (7c9070e)
+- **`/new` 命令** — 重建当前会话的 CLI 进程 (3ae2c09, 63d26a2)
+- **LobbyManager adapter 选择** — 支持按 adapter 创建会话，config 变更触发 rebuild (aa35001)
+- **Telegram think 消息** — 思考过程实时推送为可编辑的 typing 消息 (5466c4c)
+- **server_config 表** — SQLite 新增服务端配置持久化 (2780cf4)
+
+### Bug Fixes
+
+- **fix(channel-router):** msg-tidy 模式下防止重复发送 assistant 回复 (c40a980)
+- **fix(channel-router):** msg-tidy stats 和 reply 发送串行化，防止 WeCom 竞态条件 (2a1cfdc)
+- **fix(session-manager):** interrupt 空闲进程时强制设置 idle 状态，避免 UI 卡在 running (2be4c1e)
+- **fix(web):** 斜杠命令菜单始终显示 lobby 级命令（/help, /stop, /new 等），与 adapter 命令合并去重 (8629f5b)
+
+### Documentation
+
+- Add session enhancements design spec and implementation plan (e70725c, e84a079)
+- Add /stop command implementation plan (f64d61e)
+
 ## v0.4.0 (2026-03-30)
 
 ### Features
