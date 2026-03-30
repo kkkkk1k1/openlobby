@@ -11,6 +11,7 @@ export type {
   AdapterCommand,
   McpServerConfig,
   AdapterPluginModule,
+  MessageMode,
 } from './types.js';
 
 export type { ClientMessage, ServerMessage } from './protocol.js';

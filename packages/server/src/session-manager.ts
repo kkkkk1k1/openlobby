@@ -6,6 +6,7 @@ import type {
   SessionSummary,
   ControlDecision,
   AdapterCommand,
+  MessageMode,
 } from '@openlobby/core';
 import type Database from 'better-sqlite3';
 import {
@@ -16,6 +17,7 @@ import {
   getAllSessions,
   getSessionCommands,
   upsertSessionCommands,
+  getServerConfig,
 } from './db.js';
 
 export interface ManagedSession {
@@ -33,6 +35,7 @@ export interface ManagedSession {
   lastMessage?: string;
   origin: 'lobby' | 'cli' | 'lobby-manager';
   planMode: boolean;
+  messageMode: MessageMode;
 }
 
 export class SessionManager {
@@ -138,6 +141,17 @@ export class SessionManager {
   }
 
   private broadcastMessage(sessionId: string, msg: LobbyMessage): void {
+    const session = this.sessions.get(sessionId);
+    const mode = session?.messageMode ?? 'msg-total';
+
+    // msg-only: suppress tool_use and tool_result (control always passes through)
+    if (mode === 'msg-only' && (msg.type === 'tool_use' || msg.type === 'tool_result')) {
+      return;
+    }
+
+    // msg-tidy: individual tool messages still broadcast so listeners can aggregate
+    // The actual aggregation is done by ws-handler (web) and channel-router (IM)
+
     for (const handler of this.messageListeners.values()) {
       handler(sessionId, msg);
     }
@@ -167,6 +181,7 @@ export class SessionManager {
       cwd: s.cwd,
       origin: s.origin,
       planMode: s.planMode,
+      messageMode: s.messageMode,
       resumeCommand: this.buildResumeCommand(s),
     };
   }
@@ -299,7 +314,7 @@ export class SessionManager {
       model: session.model ?? null,
       tags: null,
       permission_mode: session.permissionMode ?? null,
-      message_mode: null,
+      message_mode: session.messageMode,
     });
   }
 
@@ -330,6 +345,7 @@ export class SessionManager {
       permissionMode: options.permissionMode,
       origin,
       planMode: false,
+      messageMode: (options as any).messageMode ?? (this.db ? (getServerConfig(this.db, 'defaultMessageMode') as MessageMode | undefined) : undefined) ?? 'msg-tidy',
     };
 
     this.wireProcessEvents(session);
@@ -368,6 +384,7 @@ export class SessionManager {
       permissionMode: options.permissionMode,
       origin,
       planMode: false,
+      messageMode: (options as any).messageMode ?? 'msg-tidy',
     };
     this.wireProcessEvents(session);
     this.sessions.set(session.id, session);
@@ -379,13 +396,13 @@ export class SessionManager {
     return session;
   }
 
-  configureSession(sessionId: string, options: Partial<SpawnOptions>): void {
+  configureSession(sessionId: string, options: Partial<SpawnOptions> & { messageMode?: MessageMode }): void {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`Session "${sessionId}" not found`);
     session.process.updateOptions(options);
     if (options.model) session.model = options.model;
     if (options.permissionMode) session.permissionMode = options.permissionMode;
-    // Persist model and permissionMode changes to SQLite
+    if (options.messageMode) session.messageMode = options.messageMode;
     this.persistSession(session);
     this.broadcastSessionUpdate(session);
   }
@@ -473,6 +490,7 @@ export class SessionManager {
       permissionMode: resumePermMode,
       origin: row.origin as 'lobby' | 'cli' | 'lobby-manager',
       planMode: this.pendingPlanMode.get(sessionId) ?? false,
+      messageMode: (row.message_mode as MessageMode) ?? 'msg-tidy',
     };
 
     // Apply pending plan mode to the process
@@ -563,6 +581,7 @@ export class SessionManager {
           permissionMode: row.permission_mode ?? undefined,
           cwd: row.cwd,
           origin: row.origin as 'lobby' | 'cli',
+          messageMode: (row.message_mode as MessageMode) ?? 'msg-tidy',
           resumeCommand: resumeCmd,
           jsonlPath: row.jsonl_path ?? undefined,
         });
@@ -699,6 +718,7 @@ export class SessionManager {
           permissionMode: row.permission_mode ?? undefined,
           cwd: row.cwd,
           origin: row.origin as 'lobby' | 'cli',
+          messageMode: (row.message_mode as MessageMode) ?? 'msg-tidy',
           resumeCommand: (() => {
             const a = this.adapters.get(row.adapter_name);
             return a ? `cd ${row.cwd} && ${a.getResumeCommand(row.id)}` : `cd ${row.cwd} && claude --resume ${row.id}`;
@@ -737,6 +757,67 @@ export class SessionManager {
 
   isSessionViewedOnWeb(sessionId: string): boolean {
     return (this.webViewers.get(sessionId)?.size ?? 0) > 0;
+  }
+
+  /**
+   * Rebuild the underlying CLI session without changing the lobby session identity.
+   * Stops the current process and spawns a new one with the same config.
+   */
+  async rebuildSession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error(`Session "${sessionId}" not found`);
+
+    const adapter = this.adapters.get(session.adapterName);
+    if (!adapter) throw new Error(`Adapter "${session.adapterName}" not found`);
+
+    // Read current spawn options from the process
+    const currentOpts = (session.process as unknown as { spawnOptions?: SpawnOptions })?.spawnOptions;
+    const spawnOptions: SpawnOptions = {
+      cwd: session.cwd,
+      model: session.model,
+      permissionMode: session.permissionMode,
+      ...(currentOpts ? {
+        systemPrompt: currentOpts.systemPrompt,
+        allowedTools: currentOpts.allowedTools,
+        mcpServers: currentOpts.mcpServers,
+        apiKey: currentOpts.apiKey,
+      } : {}),
+    };
+
+    // Stop existing process (graceful, not destroy)
+    try {
+      session.process.kill();
+    } catch {
+      // Process may already be dead
+    }
+
+    // Spawn new process with same config
+    const newProcess = await adapter.spawn(spawnOptions);
+
+    // Replace process reference
+    session.process = newProcess;
+    session.status = 'running';
+    session.lastActiveAt = Date.now();
+
+    // Re-wire events
+    this.wireProcessEvents(session);
+    this.persistSessionStatus(session);
+
+    // Broadcast system message
+    const sysMsg: LobbyMessage = {
+      id: `rebuild-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      sessionId: session.id,
+      timestamp: Date.now(),
+      type: 'system',
+      content: 'CLI session rebuilt',
+    };
+    this.broadcastMessage(session.id, sysMsg);
+    this.broadcastSessionUpdate(session);
+  }
+
+  getSessionMode(sessionId: string): MessageMode {
+    const session = this.sessions.get(sessionId);
+    return session?.messageMode ?? 'msg-total';
   }
 
   async cleanupIdle(maxIdleMinutes: number = 60): Promise<string[]> {
