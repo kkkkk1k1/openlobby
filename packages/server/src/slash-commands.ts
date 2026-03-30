@@ -15,6 +15,8 @@ import type { SessionManager } from './session-manager.js';
 export interface SlashCommandContext {
   sessionManager: SessionManager;
   lmSessionId: string | null;
+  /** The session to target for /stop — the session the user is currently viewing (not the LM session) */
+  targetSessionId?: string;
 }
 
 export interface SlashCommandResult {
@@ -50,6 +52,8 @@ export async function handleSlashCommand(
       return cmdGoto(ctx, arg);
     case '/exit':
       return { text: '✅ 已返回 Lobby Manager，请发送新指令。' };
+    case '/stop':
+      return await cmdStop(ctx);
     case '/rm':
       return await cmdRm(ctx, arg);
     case '/info':
@@ -73,6 +77,7 @@ function cmdHelp(): SlashCommandResult {
       '`/add [name]` — 创建新会话',
       '`/goto <id|name>` — 切换到指定会话',
       '`/exit` — 返回 Lobby Manager',
+      '`/stop` — 打断当前模型回复',
       '`/rm <id|name>` — 销毁指定会话',
       '`/info` — 查看当前会话信息',
       '`/bind <sessionId>` — 绑定到指定会话 (IM)',
@@ -166,6 +171,15 @@ async function cmdRm(ctx: SlashCommandContext, arg: string): Promise<SlashComman
   } catch (err) {
     return { text: `⚠️ 销毁会话失败: ${err instanceof Error ? err.message : String(err)}` };
   }
+}
+
+async function cmdStop(ctx: SlashCommandContext): Promise<SlashCommandResult> {
+  const targetId = ctx.targetSessionId;
+  if (!targetId) {
+    return { text: '⚠️ 当前没有正在运行的会话。' };
+  }
+  await ctx.sessionManager.interruptSession(targetId);
+  return { text: '⏹ 已打断模型回复。' };
 }
 
 /** Find a session by ID (prefix match) or display name (case-insensitive) */
