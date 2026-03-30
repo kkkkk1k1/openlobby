@@ -594,6 +594,8 @@ export class SessionManager {
       }
     }
 
+    // Sort all discovered sessions by time (newest first), regardless of adapter
+    discovered.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
     return discovered;
   }
 

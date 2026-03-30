@@ -24,8 +24,17 @@ export default function DiscoverDialog({ onClose }: Props) {
   const managedSessions = useLobbyStore((s) => s.sessions);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
+  const [adapterFilter, setAdapterFilter] = useState<string>('all');
 
   const managedIds = new Set(Object.keys(managedSessions));
+
+  // Get unique adapter names for filter tabs
+  const adapterNames = [...new Set(discoveredSessions.map((s) => s.adapterName))];
+
+  // Apply adapter filter
+  const filteredSessions = adapterFilter === 'all'
+    ? discoveredSessions
+    : discoveredSessions.filter((s) => s.adapterName === adapterFilter);
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -37,11 +46,22 @@ export default function DiscoverDialog({ onClose }: Props) {
   };
 
   const toggleAll = () => {
-    const importable = discoveredSessions.filter((s) => !managedIds.has(s.id));
-    if (selected.size === importable.length) {
-      setSelected(new Set());
+    const importable = filteredSessions.filter((s) => !managedIds.has(s.id));
+    const allSelected = importable.every((s) => selected.has(s.id));
+    if (allSelected) {
+      // Deselect all filtered
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const s of importable) next.delete(s.id);
+        return next;
+      });
     } else {
-      setSelected(new Set(importable.map((s) => s.id)));
+      // Select all filtered
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const s of importable) next.add(s.id);
+        return next;
+      });
     }
   };
 
@@ -76,6 +96,37 @@ export default function DiscoverDialog({ onClose }: Props) {
             <p className="text-xs text-gray-400 mt-0.5">
               Found {discoveredSessions.length} session{discoveredSessions.length !== 1 ? 's' : ''} not yet managed by OpenLobby
             </p>
+            {adapterNames.length > 1 && (
+              <div className="flex gap-1 mt-2">
+                <button
+                  onClick={() => setAdapterFilter('all')}
+                  className={`px-2 py-0.5 rounded text-xs ${
+                    adapterFilter === 'all'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-700 text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  All ({discoveredSessions.length})
+                </button>
+                {adapterNames.map((name) => {
+                  const count = discoveredSessions.filter((s) => s.adapterName === name).length;
+                  const label = name === 'claude-code' ? 'CC' : name === 'codex-cli' ? 'CX' : name;
+                  return (
+                    <button
+                      key={name}
+                      onClick={() => setAdapterFilter(name)}
+                      className={`px-2 py-0.5 rounded text-xs ${
+                        adapterFilter === name
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-700 text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      {label} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -87,9 +138,9 @@ export default function DiscoverDialog({ onClose }: Props) {
 
         {/* Session list */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          {discoveredSessions.length === 0 ? (
+          {filteredSessions.length === 0 ? (
             <div className="text-gray-500 text-sm text-center py-8">
-              No new CLI sessions found.
+              {discoveredSessions.length === 0 ? 'No new CLI sessions found.' : 'No sessions match the current filter.'}
             </div>
           ) : (
             <>
@@ -98,16 +149,16 @@ export default function DiscoverDialog({ onClose }: Props) {
                 <input
                   type="checkbox"
                   checked={
-                    selected.size > 0 &&
-                    selected.size === discoveredSessions.filter((s) => !managedIds.has(s.id)).length
+                    filteredSessions.filter((s) => !managedIds.has(s.id)).length > 0 &&
+                    filteredSessions.filter((s) => !managedIds.has(s.id)).every((s) => selected.has(s.id))
                   }
                   onChange={toggleAll}
                   className="rounded border-gray-500"
                 />
-                Select all
+                Select all {adapterFilter !== 'all' ? `(${adapterFilter === 'claude-code' ? 'CC' : adapterFilter === 'codex-cli' ? 'CX' : adapterFilter})` : ''}
               </label>
 
-              {discoveredSessions.map((session) => {
+              {filteredSessions.map((session) => {
                 const isManaged = managedIds.has(session.id);
                 return (
                   <SessionRow
