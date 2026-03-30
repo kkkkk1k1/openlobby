@@ -218,22 +218,10 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
         this.threadId = (result as any)?.thread?.id ?? resumeThreadId;
         this.sessionId = this.threadId!;
 
-        // Inject instructions via config (thread/resume doesn't accept developerInstructions)
-        if (this.spawnOptions.systemPrompt) {
-          await this.sendRpc('config/value/write', {
-            keyPath: 'developer_instructions',
-            value: this.spawnOptions.systemPrompt,
-            mergeStrategy: 'replace',
-          }).catch((err: unknown) => console.warn('[Codex] Failed to inject instructions:', err));
-        }
-        // Inject approval policy
-        if (this.spawnOptions.permissionMode) {
-          await this.sendRpc('config/value/write', {
-            keyPath: 'approval_policy',
-            value: this.mapPermissionMode(this.spawnOptions.permissionMode),
-            mergeStrategy: 'replace',
-          }).catch((err: unknown) => console.warn('[Codex] Failed to set approval_policy:', err));
-        }
+        // NOTE: Do NOT use config/value/write for instructions or approval_policy
+        // on resume — it pollutes the global ~/.codex/config.toml and affects ALL
+        // Codex CLI sessions. The thread already inherits its original
+        // developerInstructions from when it was created via thread/start.
       } else {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: any = {
