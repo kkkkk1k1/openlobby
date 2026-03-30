@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.3 (2026-03-30)
+
+### Bug Fixes
+
+- **[CRITICAL] Codex CLI global config pollution** — LobbyManager's system prompt ("You are a SESSION ROUTER") was written to `~/.codex/config.toml` via `config/value/write` on session resume, permanently turning ALL Codex CLI sessions into Lobby Manager behavior. Removed global config writes on resume; threads inherit their original `developerInstructions` from creation.
+
 ## v0.3.2 (2026-03-30)
 
 ### Features
