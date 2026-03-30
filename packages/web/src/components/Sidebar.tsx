@@ -5,6 +5,7 @@ import { wsRequestSessionHistory, wsDiscoverSessions } from '../hooks/useWebSock
 // NewSessionDialog removed — Lobby Manager handles session creation
 import DiscoverDialog from './DiscoverDialog';
 import ChannelManagePanel from './ChannelManagePanel';
+import GlobalSettings from './GlobalSettings';
 
 function formatRelativeTime(timestamp: number): string {
   const diff = Date.now() - timestamp;
@@ -100,6 +101,7 @@ export default function Sidebar() {
   const lmAvailable = useLobbyStore((s) => s.lmAvailable);
   const lmSessionId = useLobbyStore((s) => s.lmSessionId);
   const [showChannelPanel, setShowChannelPanel] = useState(false);
+  const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const channelProviders = useLobbyStore((s) => s.channelProviders);
 
   // Filter out the Lobby Manager session from the regular list
@@ -185,6 +187,20 @@ export default function Sidebar() {
               </span>
             )}
           </button>
+        </div>
+
+        {/* Settings */}
+        <div className="px-4 py-2 border-t border-gray-700">
+          <button
+            onClick={() => setShowGlobalSettings(true)}
+            className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded transition-colors"
+          >
+            ⚙️ Settings
+          </button>
+
+          {showGlobalSettings && (
+            <GlobalSettings onClose={() => setShowGlobalSettings(false)} />
+          )}
         </div>
 
         {/* Connection status */}
