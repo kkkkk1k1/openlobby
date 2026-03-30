@@ -159,6 +159,11 @@ export function handleWebSocket(
           break;
         }
 
+        case 'session.interrupt': {
+          await sessionManager.interruptSession(data.sessionId);
+          break;
+        }
+
         case 'session.configure': {
           sessionManager.configureSession(data.sessionId, data.options);
           break;
