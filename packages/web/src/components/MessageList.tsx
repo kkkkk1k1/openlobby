@@ -4,6 +4,7 @@ import MessageBubble from './MessageBubble';
 import ControlCard from './ControlCard';
 import QuestionCard from './QuestionCard';
 import TypingIndicator from './TypingIndicator';
+import ToolSummaryBubble from './ToolSummaryBubble';
 
 const EMPTY_MESSAGES: never[] = [];
 const EMPTY_CONTROLS: import('../stores/lobby-store').ControlRequestData[] = [];
@@ -18,6 +19,8 @@ export default function MessageList({ sessionId, onControlRespond, onChoiceSelec
   const messages = useLobbyStore((s) => s.messagesBySession[sessionId] ?? EMPTY_MESSAGES);
   const pendingControls = useLobbyStore((s) => s.pendingControlBySession[sessionId] ?? EMPTY_CONTROLS);
   const isTyping = useLobbyStore((s) => s.typingBySession[sessionId] ?? false);
+  const toolAggregator = useLobbyStore((s) => s.toolAggregatorBySession[sessionId]);
+  const sessionData = useLobbyStore((s) => s.sessions[sessionId]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -82,9 +85,13 @@ export default function MessageList({ sessionId, onControlRespond, onChoiceSelec
         </div>
       )}
 
-      {messages.map((msg) => (
-        <MessageBubble key={msg.id} msg={msg} onChoiceSelect={onChoiceSelect} />
-      ))}
+      {messages.map((msg) =>
+        msg.type === 'tool_summary' ? (
+          <ToolSummaryBubble key={msg.id} summaryText={msg.content as string} />
+        ) : (
+          <MessageBubble key={msg.id} msg={msg} onChoiceSelect={onChoiceSelect} />
+        )
+      )}
 
       {pendingControls.map((ctrl) => (
         ctrl.questions && ctrl.questions.length > 0 ? (
@@ -106,6 +113,10 @@ export default function MessageList({ sessionId, onControlRespond, onChoiceSelec
           />
         )
       ))}
+
+      {sessionData?.messageMode === 'msg-tidy' && toolAggregator?.isAggregating && (
+        <ToolSummaryBubble aggregator={toolAggregator} />
+      )}
 
       {isTyping && <TypingIndicator />}
 

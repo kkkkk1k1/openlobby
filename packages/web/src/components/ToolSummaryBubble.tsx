@@ -1,0 +1,47 @@
+import React from 'react';
+import type { ToolCallAggregator } from '../stores/lobby-store';
+
+interface Props {
+  aggregator?: ToolCallAggregator;
+  summaryText?: string;
+}
+
+export default function ToolSummaryBubble({ aggregator, summaryText }: Props) {
+  if (summaryText) {
+    return (
+      <div className="flex justify-start px-4 py-1">
+        <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-xs text-gray-400 max-w-lg">
+          {summaryText}
+        </div>
+      </div>
+    );
+  }
+
+  if (!aggregator || !aggregator.isAggregating) return null;
+
+  const statsChain = Object.entries(aggregator.toolCounts)
+    .map(([name, count]) => `${name}(${count})`)
+    .join(' \u2192 ');
+
+  const lastPreview = aggregator.lastToolContent
+    ? aggregator.lastToolContent.slice(0, 200) + (aggregator.lastToolContent.length > 200 ? '...' : '')
+    : '';
+
+  return (
+    <div className="flex justify-start px-4 py-1">
+      <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-xs max-w-lg animate-pulse">
+        <div className="text-gray-300">
+          {'\u{1F527}'} 正在处理... {statsChain}
+        </div>
+        {lastPreview && (
+          <>
+            <div className="border-t border-gray-700/50 my-1" />
+            <div className="text-gray-500 font-mono whitespace-pre-wrap break-all">
+              {'\u{1F4C4}'} {aggregator.lastToolName}: {lastPreview}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
