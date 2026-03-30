@@ -10,7 +10,7 @@ const rootDir = join(__dirname, '..', '..');
 console.log('[1/3] Building web frontend...');
 execSync('pnpm --filter @openlobby/web build', { cwd: rootDir, stdio: 'inherit' });
 
-console.log('[2/3] Bundling server with esbuild...');
+console.log('[2/4] Bundling server with esbuild...');
 await build({
   entryPoints: [join(__dirname, 'src', 'bin.ts')],
   bundle: true,
@@ -39,7 +39,27 @@ await build({
   },
 });
 
-console.log('[3/3] Copying web assets...');
+// Bundle MCP server as a separate entry point (spawned as child process by Claude Code SDK)
+console.log('[3/4] Bundling MCP server...');
+await build({
+  entryPoints: [join(rootDir, 'packages', 'server', 'src', 'mcp-server.ts')],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outfile: join(__dirname, 'dist', 'mcp-server.js'),
+  external: [],
+  banner: {
+    js: [
+      'import { createRequire } from "node:module";',
+      'const require = createRequire(import.meta.url);',
+    ].join('\n'),
+  },
+  sourcemap: false,
+  minify: false,
+});
+
+console.log('[4/4] Copying web assets...');
 const webDist = join(rootDir, 'packages', 'web', 'dist');
 const cliWeb = join(__dirname, 'web');
 if (existsSync(cliWeb)) {
