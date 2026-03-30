@@ -285,6 +285,28 @@ export class ChannelRouterImpl implements ChannelRouter {
         const downloadedPaths: string[] = [];
 
         for (const a of msg.attachments) {
+          // Case 1: Provider already downloaded to local path (e.g. WeCom decrypted media)
+          const attachPath = (a as unknown as { path?: string }).path;
+          if (attachPath) {
+            const localPath = attachPath;
+            if (cwd) {
+              // Copy to session cache
+              const { copyFileSync } = await import('node:fs');
+              const ext = extname(localPath) || '.bin';
+              const cacheDir = join(cwd, '.openlobby-cache');
+              mkdirSync(cacheDir, { recursive: true });
+              const savedName = `${randomUUID()}${ext}`;
+              const savedPath = join(cacheDir, savedName);
+              copyFileSync(localPath, savedPath);
+              downloadedPaths.push(savedPath);
+              console.log(`[ChannelRouter] Attachment copied: ${localPath} → ${savedPath}`);
+            } else {
+              downloadedPaths.push(localPath);
+            }
+            continue;
+          }
+
+          // Case 2: Remote URL or base64 — download to local
           if (!a.url && !a.base64) continue;
           try {
             let buffer: Buffer;
@@ -294,9 +316,10 @@ export class ChannelRouterImpl implements ChannelRouter {
               const res = await fetch(a.url);
               if (!res.ok) throw new Error(`HTTP ${res.status}`);
               buffer = Buffer.from(await res.arrayBuffer());
-              // Determine extension from filename, mime type, or URL
+              const contentType = res.headers.get('content-type')?.split(';')[0]?.trim();
               ext = a.filename ? extname(a.filename)
                 : a.mimeType ? (`.${a.mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'bin'}`)
+                : contentType ? (`.${contentType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'bin'}`)
                 : extname(new URL(a.url).pathname) || '.bin';
             } else {
               buffer = Buffer.from(a.base64!, 'base64');
@@ -314,7 +337,6 @@ export class ChannelRouterImpl implements ChannelRouter {
             }
           } catch (err) {
             console.error('[ChannelRouter] Failed to download attachment:', err);
-            // Fallback: append URL as text
             const label = a.type === 'image' ? '图片' : a.type === 'voice' ? '语音' : '文件';
             const name = a.filename ? ` ${a.filename}` : '';
             downloadedPaths.push(`[附件下载失败: ${label}${name} ${a.url ?? ''}]`);

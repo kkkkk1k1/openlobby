@@ -1,4 +1,4 @@
-import { WSClient, generateReqId } from '@wecom/aibot-node-sdk';
+import { WSClient, generateReqId, decryptFile } from '@wecom/aibot-node-sdk';
 import type { WsFrameHeaders } from '@wecom/aibot-node-sdk';
 import type {
   ChannelProvider,
@@ -7,6 +7,9 @@ import type {
   OutboundChannelMessage,
 } from '@openlobby/core';
 import { randomUUID } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 /** Max text length for WeCom stream reply (20480 bytes) */
 const MAX_REPLY_BYTES = 20_000;
@@ -164,7 +167,7 @@ export class WeComBotProvider implements ChannelProvider {
     });
 
     // Image messages
-    this.client.on('message.image', (frame) => {
+    this.client.on('message.image', async (frame) => {
       if (!frame.body) return;
       const body = frame.body;
       if (this.isDuplicate(body.msgid)) return;
@@ -177,7 +180,17 @@ export class WeComBotProvider implements ChannelProvider {
         streamId: generateReqId('stream'),
       });
 
-      const imageUrl = body.image?.url || (body.image as any)?.media_id;
+      // Download and decrypt image to local file
+      const imageUrl = body.image?.url;
+      const aeskey = body.image?.aeskey;
+      let attachments: Array<{ type: 'image'; path?: string; url?: string }> | undefined;
+      if (imageUrl) {
+        const localPath = await this.downloadAndDecrypt(imageUrl, aeskey, '.jpg');
+        attachments = localPath
+          ? [{ type: 'image', path: localPath }]
+          : [{ type: 'image', url: imageUrl }];
+      }
+
       router.handleInbound({
         externalMessageId: body.msgid,
         identity: {
@@ -187,13 +200,13 @@ export class WeComBotProvider implements ChannelProvider {
         },
         text: '[图片]',
         timestamp: (body.create_time ?? Date.now() / 1000) * 1000,
-        attachments: imageUrl ? [{ type: 'image', url: imageUrl }] : undefined,
+        attachments,
         raw: frame,
       }).catch((err) => this.log('error', 'image handleInbound error:', err));
     });
 
     // Mixed content messages (图文混排)
-    this.client.on('message.mixed', (frame) => {
+    this.client.on('message.mixed', async (frame) => {
       if (!frame.body) return;
       const body = frame.body;
       if (this.isDuplicate(body.msgid)) return;
@@ -206,7 +219,21 @@ export class WeComBotProvider implements ChannelProvider {
         streamId: generateReqId('stream'),
       });
 
-      const { text, attachments } = parseMixedContent(body);
+      const { text, rawAttachments } = parseMixedContent(body);
+
+      // Download and decrypt mixed content images
+      const attachments: Array<{ type: 'image' | 'file'; path?: string; url?: string; filename?: string }> = [];
+      for (const a of rawAttachments) {
+        if (a.url && a.aeskey) {
+          const ext = a.type === 'image' ? '.jpg' : (a.filename?.includes('.') ? a.filename.substring(a.filename.lastIndexOf('.')) : '.bin');
+          const localPath = await this.downloadAndDecrypt(a.url, a.aeskey, ext);
+          if (localPath) {
+            attachments.push({ type: a.type, path: localPath, filename: a.filename });
+            continue;
+          }
+        }
+        attachments.push({ type: a.type, url: a.url, filename: a.filename });
+      }
 
       router.handleInbound({
         externalMessageId: body.msgid,
@@ -470,6 +497,47 @@ export class WeComBotProvider implements ChannelProvider {
     }
   }
 
+  /**
+   * Download encrypted media from WeCom URL and decrypt with aeskey.
+   * Saves to a temp directory and returns the local file path.
+   */
+  private async downloadAndDecrypt(
+    url: string,
+    aeskey: string | undefined,
+    ext: string,
+  ): Promise<string | null> {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const rawArrayBuffer = await res.arrayBuffer();
+      let buffer: Buffer = Buffer.from(new Uint8Array(rawArrayBuffer));
+
+      // Decrypt if aeskey is provided (WeCom WebSocket mode returns encrypted media)
+      if (aeskey) {
+        buffer = decryptFile(buffer, aeskey) as Buffer;
+      }
+
+      // Detect actual file type from magic bytes if ext is generic
+      if (ext === '.bin' || ext === '.dat') {
+        if (buffer[0] === 0xFF && buffer[1] === 0xD8) ext = '.jpg';
+        else if (buffer[0] === 0x89 && buffer[1] === 0x50) ext = '.png';
+        else if (buffer[0] === 0x47 && buffer[1] === 0x49) ext = '.gif';
+        else if (buffer[0] === 0x25 && buffer[1] === 0x50) ext = '.pdf';
+      }
+
+      const cacheDir = join(tmpdir(), 'openlobby-media');
+      mkdirSync(cacheDir, { recursive: true });
+      const filename = `${randomUUID()}${ext}`;
+      const filePath = join(cacheDir, filename);
+      writeFileSync(filePath, buffer);
+      this.log('info', `Media saved: ${filePath} (${buffer.length} bytes)`);
+      return filePath;
+    } catch (err) {
+      this.log('error', 'downloadAndDecrypt error:', err);
+      return null;
+    }
+  }
+
   private isDuplicate(msgId: string): boolean {
     if (this.seenMessages.has(msgId)) return true;
     this.seenMessages.set(msgId, Date.now());
@@ -484,32 +552,36 @@ export class WeComBotProvider implements ChannelProvider {
   }
 }
 
-/** Parse mixed content message into text + image attachments */
+/** Parse mixed content message into text + raw attachments (with aeskey for decryption) */
 function parseMixedContent(body: Record<string, any>): {
   text: string;
-  attachments: Array<{ type: 'image' | 'file'; url?: string; filename?: string }>;
+  rawAttachments: Array<{ type: 'image' | 'file'; url?: string; aeskey?: string; filename?: string }>;
 } {
   const textParts: string[] = [];
-  const attachments: Array<{ type: 'image' | 'file'; url?: string; filename?: string }> = [];
+  const rawAttachments: Array<{ type: 'image' | 'file'; url?: string; aeskey?: string; filename?: string }> = [];
 
-  // WeCom mixed messages may have items in body.mixed.items or body.content
-  const items: any[] = body.mixed?.items ?? body.content?.items ?? [];
+  // WeCom SDK mixed messages: body.mixed.msg_item[] or legacy body.mixed.items[]
+  const items: any[] = body.mixed?.msg_item ?? body.mixed?.items ?? body.content?.items ?? [];
   for (const item of items) {
-    if (item.type === 'text' && item.content) {
-      textParts.push(item.content);
-    } else if (item.type === 'image') {
-      const url = item.url ?? item.media_id;
-      if (url) attachments.push({ type: 'image', url });
-    } else if (item.type === 'file') {
-      attachments.push({
+    const msgtype = item.msgtype ?? item.type;
+    if (msgtype === 'text' && (item.text?.content || item.content)) {
+      textParts.push(item.text?.content ?? item.content);
+    } else if (msgtype === 'image') {
+      const img = item.image ?? item;
+      const url = img.url ?? img.media_id;
+      if (url) rawAttachments.push({ type: 'image', url, aeskey: img.aeskey });
+    } else if (msgtype === 'file') {
+      const file = item.file ?? item;
+      rawAttachments.push({
         type: 'file',
-        url: item.url ?? item.media_id,
-        filename: item.filename,
+        url: file.url ?? file.media_id,
+        aeskey: file.aeskey,
+        filename: file.filename ?? file.file_name,
       });
     }
   }
 
-  return { text: textParts.join('\n'), attachments };
+  return { text: textParts.join('\n'), rawAttachments };
 }
 
 /** Extract quote/reply context from a WeCom text message */
