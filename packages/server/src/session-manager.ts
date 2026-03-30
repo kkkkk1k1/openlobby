@@ -299,6 +299,7 @@ export class SessionManager {
       model: session.model ?? null,
       tags: null,
       permission_mode: session.permissionMode ?? null,
+      message_mode: null,
     });
   }
 
@@ -637,6 +638,7 @@ export class SessionManager {
         model: null,
         tags: null,
         permission_mode: null,
+        message_mode: null,
       });
     }
 

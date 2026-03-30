@@ -16,6 +16,7 @@ export interface SessionRow {
   model: string | null;
   tags: string | null;
   permission_mode: string | null;
+  message_mode: string | null;
 }
 
 export function initDb(dbPath?: string): Database.Database {
@@ -101,15 +102,29 @@ export function initDb(dbPath?: string): Database.Database {
     )
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS server_config (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
+  // Migration: add message_mode column if not exists
+  try {
+    db.exec(`ALTER TABLE sessions ADD COLUMN message_mode TEXT DEFAULT 'msg-tidy'`);
+  } catch {
+    // Column already exists — ignore
+  }
+
   return db;
 }
 
 export function upsertSession(db: Database.Database, row: SessionRow): void {
   db.prepare(`
     INSERT OR REPLACE INTO sessions
-      (id, adapter_name, display_name, cwd, jsonl_path, origin, status, created_at, last_active_at, model, tags, permission_mode)
+      (id, adapter_name, display_name, cwd, jsonl_path, origin, status, created_at, last_active_at, model, tags, permission_mode, message_mode)
     VALUES
-      (@id, @adapter_name, @display_name, @cwd, @jsonl_path, @origin, @status, @created_at, @last_active_at, @model, @tags, @permission_mode)
+      (@id, @adapter_name, @display_name, @cwd, @jsonl_path, @origin, @status, @created_at, @last_active_at, @model, @tags, @permission_mode, @message_mode)
   `).run(row);
 }
 
@@ -317,4 +332,15 @@ export function deleteAdapterPlugin(db: Database.Database, name: string): void {
 
 export function toggleAdapterPlugin(db: Database.Database, name: string, enabled: boolean): void {
   db.prepare('UPDATE adapter_plugins SET enabled = ? WHERE name = ?').run(enabled ? 1 : 0, name);
+}
+
+// ─── Server Config ──────────────────────────────────────────────────
+
+export function getServerConfig(db: Database.Database, key: string): string | undefined {
+  const row = db.prepare('SELECT value FROM server_config WHERE key = ?').get(key) as { value: string } | undefined;
+  return row?.value;
+}
+
+export function setServerConfig(db: Database.Database, key: string, value: string): void {
+  db.prepare('INSERT OR REPLACE INTO server_config (key, value) VALUES (?, ?)').run(key, value);
 }
