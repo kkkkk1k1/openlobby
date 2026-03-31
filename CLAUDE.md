@@ -42,8 +42,9 @@ Users can manage multiple AI coding agent sessions (Claude Code, Codex CLI) thro
   - `/superpowers:test-driven-development` — Write tests before implementation
   - `/superpowers:systematic-debugging` — **Required** before proposing any bug fix. Diagnose root cause first, then fix.
   - `/superpowers:verification-before-completion` — **Required** before claiming work is done. Verify with evidence.
-- Use project skill `/new-cli-adapter` to generate new Agentic CLI adapter packages
-- Use project skill `/new-channel-provider` to generate new IM channel provider packages
+- Use project command `/new-cli-adapter` to generate new Agentic CLI adapter packages
+- Use project command `/new-channel-provider` to generate new IM channel provider packages
+- Use project command `/release` to publish a new version
 
 ## Common Commands
 - `pnpm install` — Install dependencies
