@@ -16,6 +16,16 @@ import type {
   AdapterPermissionMeta,
 } from '../types.js';
 
+/** Claude Code-specific spawn options (extends shared SpawnOptions) */
+export interface ClaudeCodeSpawnOptions extends SpawnOptions {
+  /**
+   * Tools that are auto-allowed without triggering canUseTool.
+   * Claude Code SDK-specific — other adapters do not use this.
+   * Defaults to ['Read', 'Glob', 'Grep'] if not provided.
+   */
+  allowedTools?: string[];
+}
+
 function makeLobbyMessage(
   sessionId: string,
   type: LobbyMessage['type'],
@@ -164,7 +174,7 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
   readonly adapter = 'claude-code';
   status: AgentProcess['status'] = 'idle';
 
-  private spawnOptions: SpawnOptions;
+  private spawnOptions: ClaudeCodeSpawnOptions;
   /** The real session ID assigned by Claude Code (set after first query) */
   private realSessionId: string | null = null;
   private pendingControls = new Map<
@@ -183,7 +193,7 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
   private preRespondedControls = new Map<string, { decision: ControlDecision; payload?: Record<string, unknown> }>();
   private abortController = new AbortController();
 
-  constructor(sessionId: string, options: SpawnOptions, private claudeCliPath?: string) {
+  constructor(sessionId: string, options: ClaudeCodeSpawnOptions, private claudeCliPath?: string) {
     super();
     this.sessionId = sessionId;
     this.spawnOptions = options;
@@ -529,7 +539,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   async spawn(options: SpawnOptions): Promise<AgentProcess> {
     const sessionId = randomUUID();
     console.log('[ClaudeCodeAdapter] Spawning session:', sessionId);
-    return new ClaudeCodeProcess(sessionId, options, this.detectedCliPath);
+    return new ClaudeCodeProcess(sessionId, options as ClaudeCodeSpawnOptions, this.detectedCliPath);
   }
 
   async resume(
@@ -540,7 +550,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       cwd: options?.cwd ?? process.cwd(),
       systemPrompt: options?.systemPrompt,
       permissionMode: options?.permissionMode,
-      allowedTools: options?.allowedTools,
+      allowedTools: (options as ClaudeCodeSpawnOptions | undefined)?.allowedTools,
       mcpServers: options?.mcpServers,
       model: options?.model,
     }, this.detectedCliPath);

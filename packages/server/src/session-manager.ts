@@ -766,16 +766,11 @@ export class SessionManager {
 
     // Read current spawn options from the process
     const currentOpts = (session.process as unknown as { spawnOptions?: SpawnOptions })?.spawnOptions;
-    const spawnOptions: SpawnOptions = {
+    const spawnOptions = {
+      ...currentOpts,
       cwd: session.cwd,
       model: session.model,
       permissionMode: this.resolvePermissionMode(session),
-      ...(currentOpts ? {
-        systemPrompt: currentOpts.systemPrompt,
-        allowedTools: currentOpts.allowedTools,
-        mcpServers: currentOpts.mcpServers,
-        apiKey: currentOpts.apiKey,
-      } : {}),
     };
 
     // Stop existing process (graceful, not destroy)

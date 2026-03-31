@@ -46,7 +46,6 @@ export interface SpawnOptions {
   model?: string;
   permissionMode?: PermissionMode;
   systemPrompt?: string;
-  allowedTools?: string[];
   mcpServers?: Record<string, McpServerConfig>;
   /** API key to authenticate with the Claude API (injected as ANTHROPIC_AUTH_TOKEN) */
   apiKey?: string;

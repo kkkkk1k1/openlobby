@@ -6,6 +6,7 @@ import type {
   AgentAdapter,
   McpServerConfig,
   PermissionMode,
+  ClaudeCodeSpawnOptions,
 } from '@openlobby/core';
 import type { SessionManager } from './session-manager.js';
 import type Database from 'better-sqlite3';
@@ -137,17 +138,11 @@ export class LobbyManager {
   }
 
   /** SpawnOptions shared by both create and resume */
-  private buildSpawnOptions(): {
-    cwd: string;
-    systemPrompt: string;
-    permissionMode: PermissionMode;
-    allowedTools: string[];
-    mcpServers: Record<string, import('@openlobby/core').McpServerConfig>;
-  } {
+  private buildSpawnOptions(): ClaudeCodeSpawnOptions {
     return {
       cwd: this.cwd,
       systemPrompt: LM_SYSTEM_PROMPT,
-      permissionMode: 'auto',
+      permissionMode: 'auto' as PermissionMode,
       allowedTools: LM_ALLOWED_TOOLS,
       mcpServers: this.buildMcpServers(),
     };

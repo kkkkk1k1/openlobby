@@ -34,3 +34,4 @@ export type {
 export { toIdentityKey } from './channel.js';
 
 export { ClaudeCodeAdapter, CodexCliAdapter, OpenCodeAdapter } from './adapters/index.js';
+export type { ClaudeCodeSpawnOptions } from './adapters/claude-code.js';
