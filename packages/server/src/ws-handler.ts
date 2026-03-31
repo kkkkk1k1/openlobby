@@ -5,6 +5,7 @@ import type { LobbyManager } from './lobby-manager.js';
 import type { ChannelRouterImpl } from './channel-router.js';
 import { handleSlashCommand } from './slash-commands.js';
 import { LM_WELCOME_TEXT } from './lm-welcome.js';
+import { startWeComQrFlow } from './channels/wecom-qr.js';
 
 export function handleWebSocket(
   socket: WebSocket,
@@ -13,6 +14,7 @@ export function handleWebSocket(
   channelRouter?: ChannelRouterImpl,
 ): void {
   const listenerId = Math.random().toString(36).slice(2);
+  let activeQrAbort: AbortController | null = null;
 
   // Forward all session messages to this WebSocket client
   sessionManager.onMessage(
@@ -445,6 +447,39 @@ export function handleWebSocket(
           break;
         }
 
+        case 'wecom.qr-start': {
+          if (activeQrAbort) {
+            activeQrAbort.abort();
+            activeQrAbort = null;
+          }
+
+          const abort = new AbortController();
+          activeQrAbort = abort;
+
+          startWeComQrFlow(
+            (status) => {
+              send({
+                type: 'wecom.qr-status',
+                ...status,
+              } as any);
+            },
+            abort.signal,
+          ).finally(() => {
+            if (activeQrAbort === abort) {
+              activeQrAbort = null;
+            }
+          });
+          break;
+        }
+
+        case 'wecom.qr-cancel': {
+          if (activeQrAbort) {
+            activeQrAbort.abort();
+            activeQrAbort = null;
+          }
+          break;
+        }
+
         default: {
           send({
             type: 'error',
@@ -461,6 +496,10 @@ export function handleWebSocket(
   });
 
   socket.on('close', () => {
+    if (activeQrAbort) {
+      activeQrAbort.abort();
+      activeQrAbort = null;
+    }
     sessionManager.removeMessageListener(listenerId);
     sessionManager.removeSessionUpdateListener(listenerId);
     sessionManager.removeNavigateListener(listenerId);
