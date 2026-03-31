@@ -26,6 +26,8 @@ import {
 
 export interface ManagedSession {
   id: string;
+  /** Previous IDs this session was known as (e.g., temporary UUID before CLI sync) */
+  previousIds: string[];
   adapterName: string;
   displayName: string;
   status: 'running' | 'idle' | 'stopped' | 'error' | 'awaiting_approval';
@@ -64,6 +66,8 @@ export class SessionManager {
   private webViewers = new Map<string, Set<string>>();
   /** Reverse map: listenerId → sessionId they're viewing */
   private viewerSessions = new Map<string, string>();
+  /** Maps old (temporary) session IDs to their current IDs after syncSessionId migrations */
+  private sessionIdAliases = new Map<string, string>();
 
   constructor(db?: Database.Database) {
     this.db = db ?? null;
@@ -237,7 +241,10 @@ export class SessionManager {
     const oldId = session.id;
     this.sessions.delete(oldId);
     session.id = process.sessionId;
+    session.previousIds.push(oldId);
     this.sessions.set(session.id, session);
+    // Record alias so clients using stale IDs can still be resolved
+    this.sessionIdAliases.set(oldId, session.id);
     if (this.db) {
       dbDeleteSession(this.db, oldId);
     }
@@ -252,10 +259,41 @@ export class SessionManager {
     return oldId;
   }
 
+  /**
+   * Resolve a session ID that may be stale (pre-migration UUID) to the current ID.
+   * Returns the session if found, undefined otherwise.
+   */
+  resolveSession(sessionId: string): ManagedSession | undefined {
+    const direct = this.sessions.get(sessionId);
+    if (direct) return direct;
+    // Check alias map for migrated IDs
+    const currentId = this.sessionIdAliases.get(sessionId);
+    if (currentId) {
+      console.log(`[SessionManager] resolveSession: alias hit ${sessionId} → ${currentId}`);
+      return this.sessions.get(currentId);
+    }
+    // Last resort: check previousIds on each session (survives alias map loss on server reload)
+    for (const session of this.sessions.values()) {
+      if (session.previousIds.includes(sessionId)) {
+        console.log(`[SessionManager] resolveSession: previousIds hit ${sessionId} → ${session.id}`);
+        // Backfill alias map for future lookups
+        this.sessionIdAliases.set(sessionId, session.id);
+        return session;
+      }
+    }
+    console.warn(`[SessionManager] resolveSession: MISS for ${sessionId}, sessions=[${[...this.sessions.keys()].join(', ')}]`);
+    return undefined;
+  }
+
   private wireProcessEvents(session: ManagedSession): void {
     const process = session.process;
 
+    // Guard: ignore events from stale processes (e.g., after /new rebuild)
+    const isStale = () => session.process !== process;
+
     process.on('message', (msg: LobbyMessage) => {
+      if (isStale()) return;
+
       // Sync session ID as soon as possible (system message carries real ID)
       const prevId = this.syncSessionId(session);
       if (prevId) {
@@ -287,6 +325,7 @@ export class SessionManager {
     });
 
     process.on('commands', (commands: AdapterCommand[]) => {
+      if (isStale()) return;
       // Persist commands per session in SQLite
       if (this.db) {
         upsertSessionCommands(this.db, session.id, JSON.stringify(commands));
@@ -295,6 +334,7 @@ export class SessionManager {
     });
 
     process.on('idle', () => {
+      if (isStale()) return;
       session.status = 'idle';
       const prevId = this.syncSessionId(session);
       this.persistSessionStatus(session);
@@ -302,6 +342,7 @@ export class SessionManager {
     });
 
     process.on('exit', () => {
+      if (isStale()) return;
       // Lobby Manager stays idle on exit so it can be resumed
       session.status = session.origin === 'lobby-manager'
         ? 'idle'
@@ -312,6 +353,7 @@ export class SessionManager {
     });
 
     process.on('error', () => {
+      if (isStale()) return;
       // Lobby Manager stays idle even on error so it can be resumed
       session.status = session.origin === 'lobby-manager' ? 'idle' : 'error';
       const prevId = this.syncSessionId(session);
@@ -356,6 +398,7 @@ export class SessionManager {
 
     const session: ManagedSession = {
       id: process.sessionId,
+      previousIds: [],
       adapterName,
       displayName: displayName ?? `Session ${this.sessions.size + 1}`,
       status: 'running',
@@ -394,6 +437,7 @@ export class SessionManager {
     const process = await adapter.resume(sessionId, options);
     const session: ManagedSession = {
       id: process.sessionId,
+      previousIds: [],
       adapterName,
       displayName,
       status: 'running',
@@ -479,6 +523,7 @@ export class SessionManager {
 
     const session: ManagedSession = {
       id: sessionId,
+      previousIds: [],
       adapterName: row.adapter_name,
       displayName: row.display_name ?? sessionId.slice(0, 8),
       status: 'running',
@@ -756,9 +801,66 @@ export class SessionManager {
   /**
    * Rebuild the underlying CLI session without changing the lobby session identity.
    * Stops the current process and spawns a new one with the same config.
+   * If the session is only in SQLite (e.g., after server reload), it will be resumed.
    */
   async rebuildSession(sessionId: string): Promise<void> {
-    const session = this.sessions.get(sessionId);
+    let session = this.resolveSession(sessionId);
+
+    // Fallback: session may exist in SQLite but not in memory (after server reload)
+    if (!session && this.db) {
+      const rows = getAllSessions(this.db);
+      const row = rows.find((r) => r.id === sessionId);
+      if (row) {
+        console.log(`[SessionManager] rebuildSession: session ${sessionId} not in memory, found in DB — resuming fresh`);
+        const adapter = this.adapters.get(row.adapter_name);
+        if (!adapter) throw new Error(`Adapter "${row.adapter_name}" not found`);
+
+        const effectivePermission = this.resolvePermissionMode(row.adapter_name,
+          (row.permission_mode as PermissionMode | null) ?? undefined);
+        const newProcess = await adapter.spawn({
+          cwd: row.cwd,
+          model: row.model ?? undefined,
+          permissionMode: effectivePermission,
+        });
+
+        session = {
+          id: sessionId,
+          previousIds: [],
+          adapterName: row.adapter_name,
+          displayName: row.display_name ?? sessionId.slice(0, 8),
+          status: 'running',
+          createdAt: row.created_at,
+          lastActiveAt: Date.now(),
+          cwd: row.cwd,
+          process: newProcess,
+          messageCount: 0,
+          model: row.model ?? undefined,
+          permissionMode: (row.permission_mode as PermissionMode | null) ?? undefined,
+          origin: row.origin as 'lobby' | 'cli' | 'lobby-manager',
+          messageMode: (row.message_mode as MessageMode) ?? 'msg-tidy',
+        };
+
+        this.wireProcessEvents(session);
+        this.sessions.set(session.id, session);
+        this.persistSessionStatus(session);
+
+        // Broadcast that the session is now alive
+        const sysMsg: LobbyMessage = {
+          id: `rebuild-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          sessionId: session.id,
+          timestamp: Date.now(),
+          type: 'system',
+          content: 'CLI session rebuilt (resumed from database)',
+        };
+        // Reset cache to only contain the rebuild notice
+        this.messageCache.set(session.id, [sysMsg]);
+
+        this.broadcastMessage(session.id, sysMsg);
+        this.broadcastSessionUpdate(session);
+        return;
+      }
+    }
+
     if (!session) throw new Error(`Session "${sessionId}" not found`);
 
     const adapter = this.adapters.get(session.adapterName);
@@ -792,7 +894,7 @@ export class SessionManager {
     this.wireProcessEvents(session);
     this.persistSessionStatus(session);
 
-    // Broadcast system message
+    // Clear message cache — new process starts with a clean slate
     const sysMsg: LobbyMessage = {
       id: `rebuild-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       sessionId: session.id,
@@ -800,6 +902,9 @@ export class SessionManager {
       type: 'system',
       content: 'CLI session rebuilt',
     };
+    // Reset cache to only contain the rebuild notice
+    this.messageCache.set(session.id, [sysMsg]);
+
     this.broadcastMessage(session.id, sysMsg);
     this.broadcastSessionUpdate(session);
   }
@@ -899,6 +1004,10 @@ export class SessionManager {
     if (session) {
       session.process.kill();
       this.sessions.delete(sessionId);
+    }
+    // Clean up aliases pointing to this session
+    for (const [alias, target] of this.sessionIdAliases) {
+      if (target === sessionId) this.sessionIdAliases.delete(alias);
     }
     if (this.db) {
       dbDeleteSession(this.db, sessionId);

@@ -100,6 +100,14 @@ export function handleWebSocket(
       return;
     }
 
+    // Resolve stale session IDs (e.g., pre-migration UUIDs) to current IDs
+    if ('sessionId' in data && typeof data.sessionId === 'string') {
+      const resolved = sessionManager.resolveSession(data.sessionId);
+      if (resolved && resolved.id !== data.sessionId) {
+        (data as { sessionId: string }).sessionId = resolved.id;
+      }
+    }
+
     try {
       switch (data.type) {
         case 'session.create': {
@@ -176,6 +184,9 @@ export function handleWebSocket(
           if (data.content.trim().toLowerCase() === '/new') {
             try {
               await sessionManager.rebuildSession(data.sessionId);
+              // Tell frontend to clear old messages — send fresh history with only the rebuild system message
+              const freshMessages = sessionManager.getCachedMessages(data.sessionId);
+              send({ type: 'session.history', sessionId: data.sessionId, messages: freshMessages });
             } catch (err) {
               const replyMsg: LobbyMessage = {
                 id: `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
