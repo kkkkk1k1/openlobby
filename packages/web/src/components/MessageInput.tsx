@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useLobbyStore } from '../stores/lobby-store';
-import { wsTogglePlanMode, wsRequestCompletions, wsInterruptSession } from '../hooks/useWebSocket';
+import { wsConfigureSession, wsRequestCompletions, wsInterruptSession } from '../hooks/useWebSocket';
 import SlashCommandMenu, {
   filterCommands,
   type SlashCommand,
@@ -101,14 +101,14 @@ export default function MessageInput({ onSend, disabled, placeholder }: Props) {
     }
   }, [value]);
 
-  const isPlanMode = activeSession?.planMode ?? false;
+  const isPlanMode = activeSession?.permissionMode === 'readonly';
 
   // Lobby-level commands are handled locally; CLI commands are passed through as messages
   const executeSlashCommand = (input: string) => {
     if (!activeSessionId) return;
     // Toggle plan mode locally instead of sending to CLI
     if (input === '/plan') {
-      wsTogglePlanMode(activeSessionId, !isPlanMode);
+      wsConfigureSession(activeSessionId, { permissionMode: isPlanMode ? 'supervised' : 'readonly' });
       return;
     }
     onSend(input);

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useCallback } from 'react';
-import { useWebSocketInit, wsSendMessage, wsRespondControl, wsTogglePlanMode, wsRecoverSession } from './hooks/useWebSocket';
+import { useWebSocketInit, wsSendMessage, wsRespondControl, wsConfigureSession, wsRecoverSession } from './hooks/useWebSocket';
 import { useLobbyStore } from './stores/lobby-store';
 import Sidebar from './components/Sidebar';
 import RoomHeader from './components/RoomHeader';
@@ -29,7 +29,7 @@ export default function App() {
       if (!activeSessionId) return;
       if (label === 'Execute Plan') {
         // Exit plan mode and send execution instruction
-        wsTogglePlanMode(activeSessionId, false);
+        wsConfigureSession(activeSessionId, { permissionMode: 'supervised' });
         wsSendMessage(activeSessionId, 'Please execute the plan above.');
       } else {
         // Send the selection as a user message
