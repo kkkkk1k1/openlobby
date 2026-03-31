@@ -90,8 +90,10 @@ export async function startWeComQrFlow(
       const pollStatus = result.status;
 
       if (pollStatus === 'success' || pollStatus === 'authorized') {
-        const botId = result.bot_id;
-        const botSecret = result.bot_secret;
+        // bot_info contains { botid, secret } (note: "botid" not "bot_id")
+        const botInfo = result.bot_info ?? {};
+        const botId = botInfo.botid ?? botInfo.bot_id ?? result.bot_id;
+        const botSecret = botInfo.secret ?? result.bot_secret;
 
         if (!botId || !botSecret) {
           onStatus({ status: 'error', error: 'Scan succeeded but credentials missing from response' });
