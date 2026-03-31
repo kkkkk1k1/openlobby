@@ -40,13 +40,19 @@ export function filterCommands(input: string, commands: SlashCommand[]): SlashCo
   );
 }
 
-export default function SlashCommandMenu({ filter, selectedIndex, onSelect, commands, loading }: Props) {
-  // Always include lobby-level commands; merge with adapter commands if available.
-  // Deduplicate by name — adapter commands take precedence over fallback.
-  const adapterCmds = commands && commands.length > 0 ? commands : [];
+/**
+ * Merge adapter commands with lobby-level fallback commands.
+ * Adapter commands take precedence when names conflict.
+ */
+export function getMergedCommands(adapterCommands?: SlashCommand[]): SlashCommand[] {
+  const adapterCmds = adapterCommands && adapterCommands.length > 0 ? adapterCommands : [];
   const adapterNames = new Set(adapterCmds.map((c) => c.name));
   const lobbyOnly = FALLBACK_COMMANDS.filter((c) => !adapterNames.has(c.name));
-  const list = [...adapterCmds, ...lobbyOnly];
+  return [...adapterCmds, ...lobbyOnly];
+}
+
+export default function SlashCommandMenu({ filter, selectedIndex, onSelect, commands, loading }: Props) {
+  const list = getMergedCommands(commands);
   const filtered = filterCommands(filter, list);
   const listRef = useRef<HTMLDivElement>(null);
 

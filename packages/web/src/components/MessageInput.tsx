@@ -3,6 +3,7 @@ import { useLobbyStore } from '../stores/lobby-store';
 import { wsConfigureSession, wsRequestCompletions, wsInterruptSession } from '../hooks/useWebSocket';
 import SlashCommandMenu, {
   filterCommands,
+  getMergedCommands,
   type SlashCommand,
 } from './SlashCommandMenu';
 
@@ -205,7 +206,7 @@ export default function MessageInput({ onSend, disabled, placeholder }: Props) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Slash menu navigation
     if (showSlashMenu) {
-      const commands = filterCommands(slashFilter, sessionCommands ?? []);
+      const commands = filterCommands(slashFilter, getMergedCommands(sessionCommands));
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSlashIndex((i) => Math.min(i + 1, commands.length - 1));
