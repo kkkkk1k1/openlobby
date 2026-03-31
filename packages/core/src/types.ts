@@ -31,11 +31,20 @@ export interface McpServerConfig {
   env?: Record<string, string>;
 }
 
+/** Unified permission mode across all adapters */
+export type PermissionMode = 'auto' | 'supervised' | 'readonly';
+
+/** Each adapter declares how OpenLobby modes map to its native CLI labels */
+export interface AdapterPermissionMeta {
+  /** Human-readable native label for each OpenLobby permission mode */
+  modeLabels: Record<PermissionMode, string>;
+}
+
 export interface SpawnOptions {
   cwd: string;
   prompt?: string;
   model?: string;
-  permissionMode?: string;
+  permissionMode?: PermissionMode;
   systemPrompt?: string;
   allowedTools?: string[];
   mcpServers?: Record<string, McpServerConfig>;
@@ -75,7 +84,6 @@ export interface AgentProcess extends EventEmitter {
   sendMessage(content: string): void;
   respondControl(requestId: string, decision: ControlDecision, payload?: Record<string, unknown>): void;
   updateOptions(opts: Partial<SpawnOptions>): void;
-  setPlanMode?(enabled: boolean): void;
   interrupt(): void;
   kill(): void;
 }
@@ -91,12 +99,11 @@ export interface SessionSummary {
   lastMessage?: string;
   messageCount: number;
   model?: string;
-  permissionMode?: string;
+  permissionMode?: PermissionMode;
   cwd: string;
   origin: 'lobby' | 'cli' | 'lobby-manager';
   resumeCommand: string;
   jsonlPath?: string;
-  planMode?: boolean;
   messageMode?: MessageMode;
   /** Channel binding info (if session is bound to an IM channel) */
   channelBinding?: {
@@ -117,6 +124,8 @@ export interface AdapterCommand {
 export interface AgentAdapter {
   readonly name: string;
   readonly displayName: string;
+  /** Permission mode metadata — native labels for each unified mode */
+  readonly permissionMeta: AdapterPermissionMeta;
 
   detect(): Promise<{ installed: boolean; version?: string; path?: string }>;
   spawn(options: SpawnOptions): Promise<AgentProcess>;
