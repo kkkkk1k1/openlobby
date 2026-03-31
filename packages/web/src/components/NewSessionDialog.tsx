@@ -10,13 +10,15 @@ export default function NewSessionDialog({ onClose }: Props) {
   const serverConfig = useLobbyStore((s) => s.serverConfig);
   const defaultAdapter = (serverConfig.defaultAdapter ?? 'claude-code') as 'claude-code' | 'codex-cli' | 'opencode';
   const defaultMessageMode = serverConfig.defaultMessageMode ?? 'msg-tidy';
+  const adapterMeta = useLobbyStore((s) => s.adapterPermissionMeta);
+  const adapterDefaults = useLobbyStore((s) => s.adapterDefaults);
 
   const [adapter, setAdapter] = useState<'claude-code' | 'codex-cli' | 'opencode'>(defaultAdapter);
   const [name, setName] = useState('');
   const [cwd, setCwd] = useState('');
   const [model, setModel] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [permissionMode, setPermissionMode] = useState('default');
+  const [permissionMode, setPermissionMode] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [initialPrompt, setInitialPrompt] = useState('');
   const [messageMode, setMessageMode] = useState(defaultMessageMode);
@@ -31,7 +33,7 @@ export default function NewSessionDialog({ onClose }: Props) {
         cwd: cwd.trim(),
         prompt: initialPrompt.trim() || undefined,
         model: model.trim() || undefined,
-        permissionMode: permissionMode !== 'default' ? permissionMode : undefined,
+        permissionMode: permissionMode || undefined,
         systemPrompt: systemPrompt.trim() || undefined,
         messageMode,
       },
@@ -167,9 +169,23 @@ export default function NewSessionDialog({ onClose }: Props) {
                     onChange={(e) => setPermissionMode(e.target.value)}
                     className="w-full bg-gray-800 text-gray-100 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="default">Default (Prompt for dangerous ops)</option>
-                    <option value="plan">Plan (Read-only)</option>
-                    <option value="bypassPermissions">Full Auto (No prompts)</option>
+                    <option value="">
+                      Use global default ({(() => {
+                        const def = adapterDefaults.find((d) => d.adapterName === adapter);
+                        const defMode = def?.permissionMode ?? 'supervised';
+                        return defMode.charAt(0).toUpperCase() + defMode.slice(1);
+                      })()})
+                    </option>
+                    {(['auto', 'supervised', 'readonly'] as const).map((mode) => {
+                      const meta = adapterMeta[adapter];
+                      const native = meta?.modeLabels?.[mode] ?? '';
+                      const label = mode.charAt(0).toUpperCase() + mode.slice(1);
+                      return (
+                        <option key={mode} value={mode}>
+                          {label}{native ? ` (${native})` : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div>
