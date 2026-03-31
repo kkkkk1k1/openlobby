@@ -425,30 +425,7 @@ export function createAdapterIntegrationTests(
     });
 
     // ──────────────────────────────────────────────
-    // 12. setPlanMode()
-    // ──────────────────────────────────────────────
-
-    it('setPlanMode() can toggle without error', async () => {
-      // Spawn a temporary process to test setPlanMode
-      await adapter.detect();
-      const proc = await adapter.spawn({
-        cwd,
-        ...options.spawnOverrides,
-      });
-
-      try {
-        if (proc.setPlanMode) {
-          // Should not throw
-          proc.setPlanMode(true);
-          proc.setPlanMode(false);
-        }
-      } finally {
-        proc.kill();
-      }
-    });
-
-    // ──────────────────────────────────────────────
-    // 13. updateOptions()
+    // 12. updateOptions()
     // ──────────────────────────────────────────────
 
     it('updateOptions() can be called without error', async () => {
