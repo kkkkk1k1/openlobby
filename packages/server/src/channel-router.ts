@@ -912,6 +912,19 @@ export class ChannelRouterImpl implements ChannelRouter {
 
       // ── control: approval card or question card ──
       case 'control': {
+        // Safety net: if session is in auto/readonly mode, adapter already handled — skip IM routing
+        const sessionInfo = this.sessionManager.getSessionInfo(sessionId);
+        if (sessionInfo) {
+          const effectiveMode = this.sessionManager.resolvePermissionMode(
+            sessionInfo.adapterName,
+            sessionInfo.permissionMode as any,
+          );
+          if (effectiveMode === 'auto' || effectiveMode === 'readonly') {
+            console.log(`[ChannelRouter] Skipping approval routing — session in ${effectiveMode} mode`);
+            break;
+          }
+        }
+
         const content = msg.content as Record<string, unknown>;
         const toolName = (content.toolName as string) ?? 'unknown';
         const toolInput = content.toolInput as Record<string, unknown> | undefined;
