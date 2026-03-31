@@ -55,7 +55,9 @@ export type ClientMessage =
   | { type: 'config.set'; key: string; value: string }
   | { type: 'adapter.get-defaults' }
   | { type: 'adapter.set-default'; adapterName: string; permissionMode: string }
-  | { type: 'adapter.get-meta' };
+  | { type: 'adapter.get-meta' }
+  | { type: 'wecom.qr-start' }
+  | { type: 'wecom.qr-cancel' };
 
 /** 后端 → 前端 */
 export type ServerMessage =
@@ -87,4 +89,5 @@ export type ServerMessage =
   | { type: 'channel.plugins-list'; plugins: ChannelPluginInfo[] }
   | { type: 'config.value'; key: string; value: string }
   | { type: 'adapter.defaults'; defaults: Array<{ adapterName: string; permissionMode: string; displayName: string }> }
-  | { type: 'adapter.meta'; meta: Record<string, { displayName: string; modeLabels: Record<string, string> }> };
+  | { type: 'adapter.meta'; meta: Record<string, { displayName: string; modeLabels: Record<string, string> }> }
+  | { type: 'wecom.qr-status'; status: 'generating' | 'waiting' | 'success' | 'expired' | 'error'; qrUrl?: string; botId?: string; secret?: string; error?: string };
