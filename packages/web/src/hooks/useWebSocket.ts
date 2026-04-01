@@ -401,6 +401,10 @@ export function wsUnbind(identityKey: string): void {
   wsSend({ type: 'channel.unbind', identityKey });
 }
 
+export function wsCompactSession(sessionId: string): void {
+  wsSend({ type: 'compact', sessionId });
+}
+
 export function wsRequestCompletions(sessionId: string): void {
   wsSend({ type: 'completion.request', sessionId });
 }

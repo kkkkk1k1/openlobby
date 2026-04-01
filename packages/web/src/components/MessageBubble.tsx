@@ -2,6 +2,7 @@ import React, { Component, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { LobbyMessageData } from '../stores/lobby-store';
+import { wsCompactSession } from '../hooks/useWebSocket';
 import ChoiceCard, { type ChoiceOption } from './ChoiceCard';
 
 interface Props {
@@ -295,6 +296,48 @@ function UserContent({ content }: { content: string }) {
   );
 }
 
+function CompactContent({ msg }: { msg: LobbyMessageData }) {
+  const content = typeof msg.content === 'object' ? msg.content as Record<string, unknown> : {};
+
+  // Compact suggestion
+  if (content.compactSuggestion) {
+    const tokensK = Math.round((content.currentTokens as number) / 1000);
+    return (
+      <div className="flex items-center gap-2 text-xs text-yellow-400">
+        <span>Context approaching limit ({tokensK}K tokens).</span>
+        <button
+          onClick={() => wsCompactSession(msg.sessionId)}
+          className="px-2 py-0.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 rounded text-xs transition-colors"
+        >
+          Compact Now
+        </button>
+      </div>
+    );
+  }
+
+  // Compacting in progress
+  if (content.compacting) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-blue-400">
+        <span className="animate-pulse">Compacting conversation...</span>
+      </div>
+    );
+  }
+
+  // Compact complete
+  if (content.compact) {
+    const preTokens = content.preTokens as number | undefined;
+    const preK = preTokens ? Math.round(preTokens / 1000) : null;
+    return (
+      <div className="flex items-center gap-2 text-xs text-green-400">
+        <span>Conversation compacted{preK ? ` (was ${preK}K tokens)` : ''}</span>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export default function MessageBubble({ msg, onChoiceSelect }: Props) {
   const content =
     typeof msg.content === 'string'
@@ -305,6 +348,20 @@ export default function MessageBubble({ msg, onChoiceSelect }: Props) {
   const isSystem = msg.type === 'system';
   const isTool = msg.type === 'tool_use' || msg.type === 'tool_result';
   const isResult = msg.type === 'result';
+
+  // Compact system messages: centered bar (like result messages)
+  if (isSystem && typeof msg.content === 'object') {
+    const c = msg.content as Record<string, unknown>;
+    if (c.compactSuggestion || c.compacting || c.compact) {
+      return (
+        <div className="flex justify-center py-1">
+          <div className="bg-gray-800/50 border border-gray-700/50 rounded-full px-4 py-1">
+            <CompactContent msg={msg} />
+          </div>
+        </div>
+      );
+    }
+  }
 
   // System messages: centered, minimal
   if (isSystem) {
