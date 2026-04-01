@@ -263,6 +263,9 @@ export function handleWebSocket(
           if (messages.length === 0) {
             messages = sessionManager.getCachedMessages(data.sessionId);
           }
+          // Sort by original message timestamp so imported/resumed sessions
+          // display in chronological order (adapters read JSONL in file order).
+          messages.sort((a, b) => a.timestamp - b.timestamp);
           send({
             type: 'session.history',
             sessionId: data.sessionId,
