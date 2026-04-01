@@ -789,8 +789,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
       for (const file of files) {
         const sessionId = basename(file, '.jsonl');
-        // Skip "rollout-" sessions (internal Claude sessions)
-        if (sessionId.startsWith('rollout-')) continue;
+        // Skip internal/non-user sessions:
+        // - "rollout-" sessions are Claude's internal framework sessions
+        // - "agent-" sessions are subagent/sidechain sessions spawned by the main session
+        if (sessionId.startsWith('rollout-') || sessionId.startsWith('agent-')) continue;
 
         const filePath = join(dirPath, file);
 
