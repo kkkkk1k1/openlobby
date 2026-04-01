@@ -5,8 +5,9 @@ import { wsRequestSessionHistory, wsDiscoverSessions } from '../hooks/useWebSock
 // NewSessionDialog removed — Lobby Manager handles session creation
 import DiscoverDialog from './DiscoverDialog';
 import ChannelManagePanel from './ChannelManagePanel';
-import GlobalSettings from './GlobalSettings';
 import GlobalSettingsDialog from './GlobalSettingsDialog';
+
+const APP_VERSION = __APP_VERSION__;
 
 function formatRelativeTime(timestamp: number): string {
   const diff = Date.now() - timestamp;
@@ -102,8 +103,7 @@ export default function Sidebar() {
   const lmAvailable = useLobbyStore((s) => s.lmAvailable);
   const lmSessionId = useLobbyStore((s) => s.lmSessionId);
   const [showChannelPanel, setShowChannelPanel] = useState(false);
-  const [showGlobalSettings, setShowGlobalSettings] = useState(false);
-  const [showGlobalSettingsDialog, setShowGlobalSettingsDialog] = useState(false);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const channelProviders = useLobbyStore((s) => s.channelProviders);
 
   // Filter out the Lobby Manager session from the regular list
@@ -191,36 +191,22 @@ export default function Sidebar() {
           </button>
         </div>
 
-        {/* Settings */}
-        <div className="px-4 py-2 border-t border-gray-700">
+        {/* Settings + Connection status + Version */}
+        <div className="px-4 py-2 border-t border-gray-700 flex items-center justify-between">
           <button
-            onClick={() => setShowGlobalSettings(true)}
-            className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded transition-colors"
+            onClick={() => setShowSettingsDialog(true)}
+            className="text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-800 px-2 py-1 rounded transition-colors"
           >
             ⚙️ Settings
           </button>
-          <button
-            onClick={() => setShowGlobalSettingsDialog(true)}
-            className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-800"
-          >
-            ⚙ Global Settings
-          </button>
-
-          {showGlobalSettings && (
-            <GlobalSettings onClose={() => setShowGlobalSettings(false)} />
-          )}
-        </div>
-
-        {/* Connection status */}
-        <div className="px-4 py-2 border-t border-gray-700 flex items-center gap-2">
-          <span
-            className={`inline-block w-2 h-2 rounded-full ${
-              connected ? 'bg-green-400' : 'bg-red-400'
-            }`}
-          />
-          <span className="text-xs text-gray-400">
-            {connected ? 'Connected' : 'Disconnected'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-block w-2 h-2 rounded-full ${
+                connected ? 'bg-green-400' : 'bg-red-400'
+              }`}
+            />
+            <span className="text-xs text-gray-500">v{APP_VERSION}</span>
+          </div>
         </div>
       </aside>
 
@@ -230,8 +216,8 @@ export default function Sidebar() {
       {showChannelPanel && (
         <ChannelManagePanel onClose={() => setShowChannelPanel(false)} />
       )}
-      {showGlobalSettingsDialog && (
-        <GlobalSettingsDialog onClose={() => setShowGlobalSettingsDialog(false)} />
+      {showSettingsDialog && (
+        <GlobalSettingsDialog onClose={() => setShowSettingsDialog(false)} />
       )}
     </>
   );
