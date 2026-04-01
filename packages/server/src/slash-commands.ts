@@ -17,7 +17,15 @@ export interface SlashCommandContext {
   lmSessionId: string | null;
   /** The session to target for /stop — the session the user is currently viewing (not the LM session) */
   targetSessionId?: string;
+  /** Caller identity for /ls cache (IM uses identityKey, web uses 'web') */
+  callerKey?: string;
 }
+
+/**
+ * Per-caller cache of the last /ls result, so /goto <number> can reference
+ * sessions by their position in the most recent listing.
+ */
+const lastLsCache = new Map<string, SessionSummary[]>();
 
 export interface SlashCommandResult {
   text: string;
@@ -85,7 +93,7 @@ function cmdHelp(): SlashCommandResult {
       '`/help` — 显示此帮助信息',
       '`/ls` — 列出所有会话',
       '`/add [name]` — 创建新会话',
-      '`/goto <id|name>` — 切换到指定会话',
+      '`/goto <序号|id|name>` — 切换到指定会话',
       '`/exit` — 返回 Lobby Manager',
       '`/stop` — 打断当前模型回复',
       '`/rm <id|name>` — 销毁指定会话',
@@ -102,23 +110,27 @@ function cmdHelp(): SlashCommandResult {
 
 function cmdLs(ctx: SlashCommandContext): SlashCommandResult {
   const sessions = ctx.sessionManager.listSessions();
-  if (sessions.length === 0) {
+  const filtered = sessions.filter((s) => s.id !== ctx.lmSessionId);
+
+  if (filtered.length === 0) {
     return { text: '📭 暂无会话。使用 `/add` 创建新会话。' };
   }
 
-  const lines = sessions
-    .filter((s) => s.id !== ctx.lmSessionId)
-    .map((s) => {
-      const statusIcon = s.status === 'running' ? '🟢'
-        : s.status === 'idle' ? '🟡'
-        : s.status === 'error' ? '🔴'
-        : s.status === 'awaiting_approval' ? '🟠'
-        : '⚫';
-      const idShort = s.id.length > 12 ? s.id.slice(0, 12) + '…' : s.id;
-      return `${statusIcon} **${s.displayName}** (${idShort}) [${s.adapterName}] — ${s.status}`;
-    });
+  // Cache for /goto <number> lookup
+  const callerKey = ctx.callerKey ?? 'web';
+  lastLsCache.set(callerKey, filtered);
 
-  return { text: `📋 **会话列表** (${lines.length})\n\n${lines.join('\n')}` };
+  const lines = filtered.map((s, i) => {
+    const statusIcon = s.status === 'running' ? '🟢'
+      : s.status === 'idle' ? '🟡'
+      : s.status === 'error' ? '🔴'
+      : s.status === 'awaiting_approval' ? '🟠'
+      : '⚫';
+    const idShort = s.id.length > 12 ? s.id.slice(0, 12) + '…' : s.id;
+    return `${i + 1}. ${statusIcon} **${s.displayName}** (${idShort}) [${s.adapterName}] — ${s.status}`;
+  });
+
+  return { text: `📋 **会话列表** (${filtered.length})\n\n${lines.join('\n')}` };
 }
 
 async function cmdAdd(
@@ -148,10 +160,10 @@ async function cmdAdd(
 
 function cmdGoto(ctx: SlashCommandContext, arg: string): SlashCommandResult {
   if (!arg) {
-    return { text: '⚠️ 用法: `/goto <session_id 或 name>`' };
+    return { text: '⚠️ 用法: `/goto <序号|id|name>`' };
   }
 
-  const session = findSessionByIdOrName(ctx.sessionManager, arg);
+  const session = findSessionByIdOrName(ctx.sessionManager, arg, ctx.callerKey);
   if (!session) {
     return { text: `⚠️ 未找到匹配的会话: "${arg}"` };
   }
@@ -167,7 +179,7 @@ async function cmdRm(ctx: SlashCommandContext, arg: string): Promise<SlashComman
     return { text: '⚠️ 用法: `/rm <session_id 或 name>`' };
   }
 
-  const session = findSessionByIdOrName(ctx.sessionManager, arg);
+  const session = findSessionByIdOrName(ctx.sessionManager, arg, ctx.callerKey);
   if (!session) {
     return { text: `⚠️ 未找到匹配的会话: "${arg}"` };
   }
@@ -196,11 +208,21 @@ async function cmdStop(ctx: SlashCommandContext): Promise<SlashCommandResult> {
   return { text: '⏹ 已打断模型回复。' };
 }
 
-/** Find a session by ID (prefix match) or display name (case-insensitive) */
+/** Find a session by number (from /ls), ID (prefix match), or display name (case-insensitive) */
 export function findSessionByIdOrName(
   sessionManager: SessionManager,
   query: string,
+  callerKey?: string,
 ): SessionSummary | undefined {
+  // Number match — reference the cached /ls result
+  if (/^\d+$/.test(query)) {
+    const cached = lastLsCache.get(callerKey ?? 'web');
+    if (cached) {
+      const idx = parseInt(query, 10) - 1; // 1-based → 0-based
+      if (idx >= 0 && idx < cached.length) return cached[idx];
+    }
+  }
+
   const sessions = sessionManager.listSessions();
   const lowerQuery = query.toLowerCase();
 

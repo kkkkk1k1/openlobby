@@ -455,6 +455,7 @@ export class ChannelRouterImpl implements ChannelRouter {
     const ctx: SlashCommandContext = {
       sessionManager: this.sessionManager,
       lmSessionId: this.lobbyManager?.getSessionId() ?? null,
+      callerKey: identityKey,
     };
     const result = await handleSharedSlashCommand(input, ctx);
     if (!result) return null;
@@ -475,13 +476,13 @@ export class ChannelRouterImpl implements ChannelRouter {
     return result.text;
   }
 
-  /** /goto <id|name> — Switch to a session (IM version with exclusivity check) */
+  /** /goto <序号|id|name> — Switch to a session (IM version with exclusivity check) */
   private cmdGoto(identityKey: string, arg: string): string {
     if (!arg) {
-      return '⚠️ 用法: `/goto <session_id 或 name>`';
+      return '⚠️ 用法: `/goto <序号|id|name>`';
     }
 
-    const session = findSessionByIdOrName(this.sessionManager, arg);
+    const session = findSessionByIdOrName(this.sessionManager, arg, identityKey);
     if (!session) {
       return `⚠️ 未找到匹配的会话: "${arg}"`;
     }
