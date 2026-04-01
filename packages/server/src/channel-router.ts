@@ -113,6 +113,14 @@ export class ChannelRouterImpl implements ChannelRouter {
     this.sessionManager.onSessionUpdate('channel-router', this.handleSessionUpdate.bind(this));
     this.sessionManager.onNavigate('channel-router', this.handleNavigate.bind(this));
 
+    // Sync command menus when adapter commands change (rebuild, SDK refresh)
+    this.sessionManager.onCommands('channel-router-cmds', (sessionId, _commands) => {
+      const bindings = getAllBindingsBySession(this.db, sessionId);
+      for (const binding of bindings) {
+        this.syncCommandsToProvider(binding.identity_key, sessionId);
+      }
+    });
+
     // Compact event notifications
     this.sessionManager.onCompactSuggestion('channel-router-compact', (session) => {
       const bindingRow = this.resolveResponseBinding(session.id);
@@ -506,6 +514,9 @@ export class ChannelRouterImpl implements ChannelRouter {
 
     updateBindingActiveSession(this.db, identityKey, session.id);
     this.lastSenderBySession.set(session.id, identityKey);
+
+    // Sync command menu for new session (may be different adapter)
+    this.syncCommandsToProvider(identityKey, session.id);
 
     return `✅ 已切换到会话: **${session.displayName}** (\`${session.id.slice(0, 12)}\`)`;
   }
@@ -1311,6 +1322,9 @@ export class ChannelRouterImpl implements ChannelRouter {
         kind: 'message',
       }).catch(() => {});
     }
+
+    // Sync command menu for navigated session
+    this.syncCommandsToProvider(lastSenderKey, sessionId);
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────
@@ -1396,6 +1410,12 @@ export class ChannelRouterImpl implements ChannelRouter {
         kind: 'message',
         format: 'markdown',
       }).catch((err) => console.error('[ChannelRouter] welcome message error:', err));
+    }
+
+    // Sync initial command menu for new IM user
+    const lmSessionId = this.lobbyManager?.getSessionId();
+    if (lmSessionId) {
+      this.syncCommandsToProvider(identityKey, lmSessionId);
     }
 
     return row;
