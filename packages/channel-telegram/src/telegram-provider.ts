@@ -217,11 +217,12 @@ export class TelegramBotProvider implements ChannelProvider {
   async syncCommands(peerId: string, groups: CommandGroup[]): Promise<void> {
     const commands = groups.flatMap(g =>
       g.commands.map((c: { command: string; description: string }) => ({
-        command: c.command.slice(0, 32).toLowerCase(),
+        // Telegram: only lowercase a-z, 0-9, underscore; 1-32 chars
+        command: c.command.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 32),
         // Telegram requires description 1-256 chars; fallback to command name if empty
         description: (c.description || `/${c.command}`).slice(0, 256),
       }))
-    );
+    ).filter(c => /^[a-z][a-z0-9_]{0,31}$/.test(c.command));
 
     if (commands.length === 0) return;
 
