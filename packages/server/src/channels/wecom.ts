@@ -5,6 +5,7 @@ import type {
   ChannelRouter,
   ChannelProviderConfig,
   OutboundChannelMessage,
+  CommandGroup,
 } from '@openlobby/core';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -39,6 +40,9 @@ export class WeComBotProvider implements ChannelProvider {
   private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
   /** Consecutive reconnect attempts (for backoff) */
   private reconnectAttempts = 0;
+
+  /** Cached command groups by peerId */
+  private cachedCommandGroups = new Map<string, CommandGroup[]>();
 
   /** Recent debug logs (ring buffer) */
   debugLogs: string[] = [];
@@ -344,6 +348,63 @@ export class WeComBotProvider implements ChannelProvider {
       this.log('error', 'updateCard error:', err);
     }
     this.pendingReplies.delete(key);
+  }
+
+  async syncCommands(peerId: string, groups: CommandGroup[]): Promise<void> {
+    this.cachedCommandGroups.set(peerId, groups);
+    this.log('info', `Cached ${groups.length} command groups for ${peerId}`);
+  }
+
+  async sendCommandMenu(peerId: string): Promise<void> {
+    const groups = this.cachedCommandGroups.get(peerId);
+    if (!groups || groups.length === 0) {
+      await this.client.sendMessage(peerId, {
+        msgtype: 'markdown',
+        markdown: { content: '⚠️ 暂无可用命令。' },
+      });
+      return;
+    }
+
+    // Build markdown text with grouped commands
+    const lines: string[] = ['📋 **命令菜单**', ''];
+    for (const group of groups) {
+      lines.push(`**${group.label}**`);
+      for (const cmd of group.commands) {
+        lines.push(`\`/${cmd.command}\` — ${cmd.description}`);
+      }
+      lines.push('');
+    }
+
+    // Build button list from all commands (WeCom template_card supports up to 6 buttons)
+    // Pick the most useful commands as buttons, rest stay in text
+    const allCommands = groups.flatMap(g => g.commands);
+    const buttonCommands = allCommands.slice(0, 6);
+    const taskId = `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    try {
+      await this.client.sendMessage(peerId, {
+        msgtype: 'template_card',
+        template_card: {
+          card_type: 'button_interaction',
+          main_title: { title: '📋 命令菜单' },
+          sub_title_text: lines.join('\n'),
+          button_list: buttonCommands.map((c, i) => ({
+            text: `/${c.command}`,
+            style: i === 0 ? 1 : 2,
+            key: `cmd:/${c.command}`,
+          })),
+          task_id: taskId,
+        },
+      });
+      this.log('info', `Sent command menu card to ${peerId}`);
+    } catch (err) {
+      this.log('error', 'sendCommandMenu error:', err);
+      // Fallback to plain markdown
+      await this.client.sendMessage(peerId, {
+        msgtype: 'markdown',
+        markdown: { content: lines.join('\n') },
+      });
+    }
   }
 
   async sendMessage(msg: OutboundChannelMessage): Promise<void> {
