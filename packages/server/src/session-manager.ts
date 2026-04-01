@@ -82,6 +82,10 @@ export class SessionManager {
     string,
     (session: ManagedSession) => void
   >();
+  private compactCompleteListeners = new Map<
+    string,
+    (session: ManagedSession, content: unknown) => void
+  >();
 
   constructor(db?: Database.Database) {
     this.db = db ?? null;
@@ -150,6 +154,17 @@ export class SessionManager {
 
   removeCompactSuggestionListener(listenerId: string): void {
     this.compactSuggestionListeners.delete(listenerId);
+  }
+
+  onCompactComplete(
+    listenerId: string,
+    handler: (session: ManagedSession, content: unknown) => void,
+  ): void {
+    this.compactCompleteListeners.set(listenerId, handler);
+  }
+
+  removeCompactCompleteListener(listenerId: string): void {
+    this.compactCompleteListeners.delete(listenerId);
   }
 
   /** Get cached commands for a session from SQLite */
@@ -347,6 +362,23 @@ export class SessionManager {
       cache.push(msg);
 
       this.broadcastMessage(session.id, msg);
+
+      // Reset token counters on compact completion
+      if (
+        msg.type === 'system' &&
+        typeof msg.content === 'object' &&
+        msg.content !== null &&
+        (msg.content as Record<string, unknown>).compact === true
+      ) {
+        session.tokenUsage.inputTokens = 0;
+        session.tokenUsage.outputTokens = 0;
+        session.tokenUsage.totalTokens = 0;
+        session.tokenUsage.compactCount += 1;
+        session.tokenUsage.compactPrompted = false;
+        for (const handler of this.compactCompleteListeners.values()) {
+          handler(session, msg.content);
+        }
+      }
 
       // Accumulate token usage from result messages
       if (msg.type === 'result' && msg.meta?.tokenUsage) {
