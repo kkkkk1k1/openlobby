@@ -215,6 +215,8 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
   /** Pre-responded decisions: user responded before canUseTool was called */
   private preRespondedControls = new Map<string, { decision: ControlDecision; payload?: Record<string, unknown> }>();
   private abortController = new AbortController();
+  /** Accumulated stderr output from the CLI subprocess for error diagnostics */
+  private stderrChunks: string[] = [];
 
   constructor(sessionId: string, options: ClaudeCodeSpawnOptions, private claudeCliPath?: string) {
     super();
@@ -253,23 +255,68 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
         subprocessEnv.ANTHROPIC_API_KEY = this.spawnOptions.apiKey;
       }
 
+      // Reset stderr buffer for this query
+      this.stderrChunks = [];
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const queryOpts: any = {
         // Point SDK to the real Claude CLI binary (avoids bundled-path mismatch)
         pathToClaudeCodeExecutable: this.claudeCliPath,
-        // Workaround for SDK spawn ENOENT bug (anthropics/claude-code#4383, #14464):
-        // The SDK's isNativeBinary() mishandles symlinked/native-installer binaries,
-        // causing child_process.spawn() to fail with ENOENT despite the file existing.
-        // Using spawnClaudeCodeProcess with shell:true lets the OS shell handle execution.
+        // Custom spawn to capture stderr and handle native binaries.
+        // IMPORTANT: shell must be false — shell:true corrupts JSON arguments
+        // (e.g. --mcp-config) by interpreting {}, ", : as shell metacharacters,
+        // causing "Invalid MCP configuration" and exit code 1.
         spawnClaudeCodeProcess: (opts: { command: string; args: string[]; cwd: string; env: Record<string, string>; signal: AbortSignal }) => {
+          // === Diagnostic: log every spawn attempt ===
+          const diagInfo = {
+            command: opts.command,
+            argsCount: opts.args.length,
+            args: opts.args.map((a, i) => `  [${i}] ${a.length > 200 ? a.slice(0, 200) + '...' : a}`).join('\n'),
+            cwd: opts.cwd,
+            hasApiKey: !!opts.env.ANTHROPIC_API_KEY,
+            hasAuthToken: !!opts.env.ANTHROPIC_AUTH_TOKEN,
+          };
+          console.log('[ClaudeCode] === SPAWN DIAGNOSTICS ===');
+          console.log('[ClaudeCode] command:', diagInfo.command);
+          console.log('[ClaudeCode] cwd:', diagInfo.cwd);
+          console.log('[ClaudeCode] args:\n' + diagInfo.args);
+          console.log('[ClaudeCode] env: API_KEY=%s AUTH_TOKEN=%s', diagInfo.hasApiKey, diagInfo.hasAuthToken);
+          this.stderrChunks.push(`[SPAWN] cmd=${diagInfo.command} cwd=${diagInfo.cwd} args=${diagInfo.argsCount}\n`);
+
           const child = cpSpawn(opts.command, opts.args, {
             cwd: opts.cwd,
             stdio: ['pipe', 'pipe', 'pipe'],
             env: opts.env,
             signal: opts.signal,
-            shell: true,
           });
+
+          // Capture spawn-level errors (e.g. ENOENT if binary not found)
+          child.on('error', (spawnErr: Error) => {
+            const errMsg = `[SPAWN ERROR] ${spawnErr.message} (code=${(spawnErr as NodeJS.ErrnoException).code})`;
+            console.error('[ClaudeCode]', errMsg);
+            this.stderrChunks.push(errMsg + '\n');
+          });
+
+          // Capture stderr from the CLI subprocess for error diagnostics
+          child.stderr?.on('data', (chunk: Buffer) => {
+            const text = chunk.toString('utf-8');
+            console.error('[ClaudeCode stderr]', text);
+            this.stderrChunks.push(text);
+          });
+
+          // Log exit code
+          child.on('exit', (code: number | null, signal: string | null) => {
+            const exitMsg = `[EXIT] code=${code} signal=${signal}`;
+            console.log('[ClaudeCode]', exitMsg);
+            this.stderrChunks.push(exitMsg + '\n');
+          });
+
           return child;
+        },
+        // SDK stderr callback — captures internal SDK-level diagnostics
+        stderr: (msg: string) => {
+          console.error('[ClaudeCode SDK stderr]', msg);
+          this.stderrChunks.push(msg);
         },
         // Pass sanitized env to the spawned CLI process
         env: subprocessEnv,
@@ -371,13 +418,46 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
       console.log('[ClaudeCode] Query completed');
       this.emit('idle');
     } catch (err) {
-      console.error('[ClaudeCode] Query error:', err);
+      const stderrOutput = this.stderrChunks.join('').trim();
+      console.error('[ClaudeCode] === QUERY FAILED ===');
+      console.error('[ClaudeCode] error:', err);
+      if (stderrOutput) console.error('[ClaudeCode] stderr:\n' + stderrOutput);
       this.status = 'error';
+
+      // Include stderr + diagnostics in error message for frontend visibility
+      const baseError = err instanceof Error ? err.message : String(err);
+      const fullError = stderrOutput
+        ? `${baseError}\n--- CLI stderr ---\n${stderrOutput.slice(0, 2000)}`
+        : baseError;
+
+      // Write diagnostic log to file for persistent analysis
+      try {
+        const { appendFileSync, mkdirSync: mkdirSyncFs } = await import('node:fs');
+        const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '/tmp';
+        const logDir = `${homeDir}/.openlobby`;
+        mkdirSyncFs(logDir, { recursive: true });
+        const logPath = `${logDir}/claude-code-errors.log`;
+        const logEntry = [
+          `\n=== ${new Date().toISOString()} session=${this.sessionId} ===`,
+          `error: ${baseError}`,
+          `cliPath: ${this.claudeCliPath ?? '(sdk-default)'}`,
+          `cwd: ${this.spawnOptions.cwd}`,
+          `resume: ${resumeId ?? 'none'}`,
+          `permissionMode: ${this.spawnOptions.permissionMode}`,
+          `mcpServers: ${this.spawnOptions.mcpServers ? Object.keys(this.spawnOptions.mcpServers).join(',') : 'none'}`,
+          stderrOutput ? `stderr:\n${stderrOutput}` : 'stderr: (empty)',
+          '=== END ===\n',
+        ].join('\n');
+        appendFileSync(logPath, logEntry);
+        console.log(`[ClaudeCode] Diagnostic log written to: ${logPath}`);
+      } catch {
+        // logging failure is not critical
+      }
 
       const errorMsg = makeLobbyMessage(
         this.sessionId,
         'system',
-        { error: err instanceof Error ? err.message : String(err) },
+        { error: fullError },
         { isError: true },
       );
       this.emit('message', errorMsg);
@@ -472,11 +552,39 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
     if (this.realSessionId) {
       // We have a real session — resume it
       console.log('[ClaudeCode] Resuming session:', this.realSessionId);
-      this.runQuery(content, this.realSessionId);
+      this.runQueryWithResumeFallback(content, this.realSessionId);
     } else {
       // First message — start a fresh query (no resume)
       console.log('[ClaudeCode] Starting fresh query');
       this.runQuery(content);
+    }
+  }
+
+  /**
+   * Try to resume a session; if resume fails (e.g., stale session ID → exit code 1),
+   * automatically fall back to a fresh query so the user isn't stuck.
+   */
+  private async runQueryWithResumeFallback(prompt: string, resumeId: string): Promise<void> {
+    const prevStatus = this.status;
+    await this.runQuery(prompt, resumeId);
+
+    // If runQuery set status to 'error', the resume likely failed.
+    // Fall back to a fresh query (no resume) to recover automatically.
+    if (this.status === 'error') {
+      console.warn(`[ClaudeCode] Resume failed for ${resumeId}, falling back to fresh query`);
+      this.realSessionId = null;
+      this.status = prevStatus;
+      this.abortController = new AbortController();
+
+      // Notify user that we're retrying
+      const retryMsg = makeLobbyMessage(
+        this.sessionId,
+        'system',
+        { info: 'Resume failed, starting fresh session...' },
+      );
+      this.emit('message', retryMsg);
+
+      await this.runQuery(prompt);
     }
   }
 
