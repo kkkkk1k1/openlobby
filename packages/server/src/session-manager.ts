@@ -839,6 +839,7 @@ export class SessionManager {
       origin: 'cli',
       resumeCommand: resumeCmd,
       jsonlPath: data.jsonlPath,
+      pinned: false,
     };
 
     // Broadcast so all WS clients see the imported session
@@ -901,6 +902,7 @@ export class SessionManager {
             return a ? `cd ${row.cwd} && ${a.getResumeCommand(row.id)}` : `cd ${row.cwd} && claude --resume ${row.id}`;
           })(),
           jsonlPath: row.jsonl_path ?? undefined,
+          pinned: row.pinned === 1,
         };
       }
     }
