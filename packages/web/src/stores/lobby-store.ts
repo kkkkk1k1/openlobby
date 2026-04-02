@@ -20,6 +20,7 @@ export interface SessionSummaryData {
     peerId: string;
     peerDisplayName?: string;
   };
+  pinned?: boolean;
 }
 
 export interface ChannelProviderData {

@@ -405,6 +405,14 @@ export function wsCompactSession(sessionId: string): void {
   wsSend({ type: 'compact', sessionId });
 }
 
+export function wsPinSession(sessionId: string, pinned: boolean): void {
+  wsSend({ type: 'session.pin', sessionId, pinned });
+}
+
+export function wsRenameSession(sessionId: string, displayName: string): void {
+  wsSend({ type: 'session.rename', sessionId, displayName });
+}
+
 export function wsRequestCompletions(sessionId: string): void {
   wsSend({ type: 'completion.request', sessionId });
 }
