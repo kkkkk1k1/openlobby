@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.4.4 (2026-04-02)
+
+### Features
+
+- **Session pin & rename** — Pin sessions to sidebar top and rename sessions with inline UI, WebSocket protocol, and SQLite persistence (774089f..4bfa3f4)
+
+### Bug Fixes
+
+- **fix(core):** Enhance Claude Code error diagnostics — capture stderr, spawn diagnostics, auto-fallback on resume failure, remove shell:true to prevent JSON argument corruption (69e6f9f)
+- **fix(web):** Refactor slash command menu for synchronous detection and scored sorting (exact > prefix > partial > description match) (021836c)
+- **fix(web):** Improve pinned session visual distinction in sidebar (3da8227)
+- **fix(web):** Move pin/rename buttons inline to avoid overlap with adapter badge (5fb0446)
+- **fix(server):** Add missing pinned field in importSession and getSessionInfo (87fa509)
+- **fix(telegram):** Command menu sync failing due to duplicates and payload overflow (a78e412)
+
+### Documentation
+
+- Add session pin & rename design spec and implementation plan (aaf6ea3, 5d4df74)
+- Add resume cmd button optimization design spec and implementation plan (8a470ca, 3241dc2)
+
 ## v0.4.3 (2026-04-02)
 
 ### Features
