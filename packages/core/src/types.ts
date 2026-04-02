@@ -104,6 +104,8 @@ export interface SessionSummary {
   resumeCommand: string;
   jsonlPath?: string;
   messageMode?: MessageMode;
+  /** Whether this session is pinned to the top of the list */
+  pinned?: boolean;
   /** Channel binding info (if session is bound to an IM channel) */
   channelBinding?: {
     channelName: string;
