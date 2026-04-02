@@ -79,44 +79,9 @@ function SessionCard({
           : ''
       }`}
     >
-      {/* Action buttons */}
-      {(isHovered || isPinned) && !isEditing && (
-        <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 z-10">
-          <span
-            onClick={(e) => {
-              e.stopPropagation();
-              onPin(!isPinned);
-            }}
-            className={`p-0.5 rounded text-xs cursor-pointer transition-colors ${
-              isPinned
-                ? 'text-blue-400 hover:text-blue-300'
-                : isHovered
-                  ? 'text-gray-500 hover:text-gray-300'
-                  : 'hidden'
-            }`}
-            title={isPinned ? 'Unpin' : 'Pin to top'}
-          >
-            📌
-          </span>
-          {isHovered && (
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditName(session.displayName);
-                setIsEditing(true);
-              }}
-              className="p-0.5 rounded text-xs text-gray-500 hover:text-gray-300 cursor-pointer transition-colors"
-              title="Rename"
-            >
-              ✏️
-            </span>
-          )}
-        </div>
-      )}
-
-      <div className="flex items-center gap-2 mb-1">
+      <div className="flex items-center gap-1.5 mb-1">
         <span
-          className={`inline-block w-2 h-2 rounded-full ${config.color} ${
+          className={`inline-block w-2 h-2 rounded-full shrink-0 ${config.color} ${
             config.pulse ? 'animate-pulse' : ''
           }`}
           title={config.label}
@@ -132,19 +97,52 @@ function SessionCard({
             }}
             onBlur={handleRenameConfirm}
             onClick={(e) => e.stopPropagation()}
-            className="text-sm font-medium text-gray-100 bg-gray-600 border border-gray-500 rounded px-1 py-0 flex-1 outline-none focus:border-blue-400"
+            className="text-sm font-medium text-gray-100 bg-gray-600 border border-gray-500 rounded px-1 py-0 flex-1 min-w-0 outline-none focus:border-blue-400"
           />
         ) : (
-          <span className="text-sm font-medium text-gray-100 truncate flex-1">
-            {session.displayName}
+          <>
+            <span className="text-sm font-medium text-gray-100 truncate">
+              {session.displayName}
+            </span>
+            {isHovered && (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditName(session.displayName);
+                  setIsEditing(true);
+                }}
+                className="shrink-0 p-0.5 rounded text-xs text-gray-500 hover:text-gray-300 cursor-pointer transition-colors"
+                title="Rename"
+              >
+                ✏️
+              </span>
+            )}
+          </>
+        )}
+        <span className="flex-1" />
+        {/* Pin button — before adapter badge */}
+        {(isHovered || isPinned) && !isEditing && (
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              onPin(!isPinned);
+            }}
+            className={`shrink-0 p-0.5 rounded text-xs cursor-pointer transition-colors ${
+              isPinned
+                ? 'text-blue-400 hover:text-blue-300'
+                : 'text-gray-500 hover:text-gray-300'
+            }`}
+            title={isPinned ? 'Unpin' : 'Pin to top'}
+          >
+            📌
           </span>
         )}
         {isAwaiting ? (
-          <span className="text-[10px] text-orange-300 bg-orange-500/20 px-1.5 py-0.5 rounded font-medium animate-pulse">
+          <span className="shrink-0 text-[10px] text-orange-300 bg-orange-500/20 px-1.5 py-0.5 rounded font-medium animate-pulse">
             Approval
           </span>
         ) : (
-          <span className="text-xs text-gray-500 uppercase">
+          <span className="shrink-0 text-xs text-gray-500 uppercase">
             {session.adapterName === 'claude-code' ? 'CC' : session.adapterName === 'codex-cli' ? 'CX' : session.adapterName === 'opencode' ? 'OC' : session.adapterName}
           </span>
         )}
