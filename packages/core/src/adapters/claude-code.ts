@@ -884,9 +884,9 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
     for (const dirName of projectDirs) {
       const dirPath = join(storagePath, dirName);
-      // Decode project directory: "-Users-kone-project" → "/Users/kone/project"
-      const cwd = this.decodeProjectDir(dirName);
-      if (filterCwd && cwd !== filterCwd) continue;
+      // decodeProjectDir is lossy (can't distinguish path-separator hyphens from literal ones),
+      // so we only use it as a fallback. The authoritative cwd comes from JSONL metadata.
+      const decodedCwdHint = this.decodeProjectDir(dirName);
 
       let files: string[];
       try {
@@ -911,6 +911,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
           // Skip sessions with no meaningful content
           if (meta.messageCount === 0 && !meta.lastMessage) continue;
 
+          // Prefer cwd from JSONL (accurate) over decodeProjectDir (lossy encoding)
+          const sessionCwd = meta.cwd || decodedCwdHint;
+          if (filterCwd && sessionCwd !== filterCwd) continue;
+
           results.push({
             id: sessionId,
             adapterName: this.name,
@@ -920,7 +924,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
             lastMessage: meta.lastMessage,
             messageCount: meta.messageCount,
             model: meta.model,
-            cwd,
+            cwd: sessionCwd,
             origin: 'cli',
             resumeCommand: this.getResumeCommand(sessionId),
             jsonlPath: filePath,
@@ -958,9 +962,11 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     model?: string;
     lastMessage?: string;
     messageCount: number;
+    cwd?: string;
   }> {
     let model: string | undefined;
     let lastMessage: string | undefined;
+    let cwd: string | undefined;
     let messageCount = 0;
     let linesRead = 0;
 
@@ -975,6 +981,11 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
         try {
           const obj = JSON.parse(line);
+
+          // Extract cwd from the first message that has it
+          if (!cwd && typeof obj.cwd === 'string' && obj.cwd) {
+            cwd = obj.cwd;
+          }
 
           if (obj.type === 'user' && !obj.isMeta && obj.message?.content) {
             messageCount++;
@@ -1011,6 +1022,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       model,
       lastMessage,
       messageCount,
+      cwd,
     };
   }
 
