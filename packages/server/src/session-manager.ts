@@ -1055,6 +1055,10 @@ export class SessionManager {
       permissionMode: this.resolvePermissionMode(session),
     };
 
+    // Detach old process event listeners before killing to prevent
+    // spurious error/stopped broadcasts (kill() synchronously emits 'exit')
+    session.process.removeAllListeners();
+
     // Stop existing process (graceful, not destroy)
     try {
       session.process.kill();
