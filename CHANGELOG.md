@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.4.5 (2026-04-03)
+
+### Features
+
+- **Terminal detector** — Three-level fallback terminal detection with registry, verification, and fallback dialog with copy button when terminal open fails (a5d4ba8, d3493dc, d825f17)
+- **Open in Terminal** — Integrated terminal-detector into session workflow with `open-terminal-result` protocol message (bc6ec6f)
+
+### Bug Fixes
+
+- **fix(core):** Auto-retry transient Claude CLI startup failures (exit code 1) with diagnostic stderr capture (344313c)
+- **fix(core):** Read cwd from JSONL instead of lossy directory name decoding (6c8c00d)
+- **fix(server):** Fix iTerm2 blank window — use write text instead of command parameter (b6e04b5)
+- **fix(server):** Fix Telegram channel ignoring permission mode and msg-tidy settings (12e35b7)
+- **fix(server):** Propagate resumeCmd, fix shell quoting, add timeouts (bc6ec6f)
+- **fix(opencode):** Fix history not loading — query actual DB schema (066595d)
+- **fix(web):** Rename 'Resume Cmd' button to 'Open in Terminal' (6807ac5)
+- **fix(web):** Strip protocol XML tags from user message display (325443d)
+- **fix(web):** Remove compact conversation button from RoomHeader (344313c)
+
+### Other Changes
+
+- Unit tests for terminal-detector detection, verification, and fallback (76e63d2)
+- Add restart-dev.sh helper script (344313c)
+
 ## v0.4.4 (2026-04-02)
 
 ### Features
