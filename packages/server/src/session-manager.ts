@@ -233,19 +233,17 @@ export class SessionManager {
   }
 
   private buildResumeCommand(s: ManagedSession): string {
-    const parts: string[] = [`cd ${s.cwd}`];
-    const adapter = this.adapters.get(s.adapterName);
-    let cmd = adapter ? adapter.getResumeCommand(s.id) : `claude --resume ${s.id}`;
-    if (s.model) cmd += ` --model ${s.model}`;
-    const effectiveMode = this.resolvePermissionMode(s);
-    if (effectiveMode !== 'supervised') {
-      const nativeLabel = adapter?.permissionMeta.modeLabels[effectiveMode];
-      if (nativeLabel) {
-        cmd += ` --permission-mode ${nativeLabel}`;
-      }
-    }
-    parts.push(cmd);
-    return parts.join(' && ');
+    return this.composeResumeCommand(s.adapterName, s.id, s.cwd);
+  }
+
+  private composeResumeCommand(
+    adapterName: string,
+    sessionId: string,
+    cwd: string,
+  ): string {
+    const adapter = this.adapters.get(adapterName);
+    const cmd = adapter ? adapter.getResumeCommand(sessionId) : `claude --resume ${sessionId}`;
+    return `cd ${cwd} && ${cmd}`;
   }
 
   resolvePermissionMode(session: ManagedSession): PermissionMode;
@@ -726,11 +724,6 @@ export class SessionManager {
       const rows = getAllSessions(this.db);
       for (const row of rows) {
         if (seenIds.has(row.id)) continue;
-        const rowAdapter = this.adapters.get(row.adapter_name);
-        let resumeCmd = rowAdapter
-          ? `cd ${row.cwd} && ${rowAdapter.getResumeCommand(row.id)}`
-          : `cd ${row.cwd} && claude --resume ${row.id}`;
-        if (row.model) resumeCmd += ` --model ${row.model}`;
         result.push({
           id: row.id,
           adapterName: row.adapter_name,
@@ -743,7 +736,7 @@ export class SessionManager {
           cwd: row.cwd,
           origin: row.origin as 'lobby' | 'cli',
           messageMode: (row.message_mode as MessageMode) ?? this.resolveGlobalMessageMode(),
-          resumeCommand: resumeCmd,
+          resumeCommand: this.composeResumeCommand(row.adapter_name, row.id, row.cwd),
           jsonlPath: row.jsonl_path ?? undefined,
           pinned: row.pinned === 1,
         });
@@ -826,7 +819,7 @@ export class SessionManager {
 
     const adapter = this.adapters.get(data.adapterName);
     const resumeCmd = adapter
-      ? `cd ${data.cwd} && ${adapter.getResumeCommand(data.sessionId)}`
+      ? this.composeResumeCommand(data.adapterName, data.sessionId, data.cwd)
       : `cd ${data.cwd}`;
 
     const summary: SessionSummary = {
@@ -938,10 +931,7 @@ export class SessionManager {
           cwd: row.cwd,
           origin: row.origin as 'lobby' | 'cli',
           messageMode: (row.message_mode as MessageMode) ?? this.resolveGlobalMessageMode(),
-          resumeCommand: (() => {
-            const a = this.adapters.get(row.adapter_name);
-            return a ? `cd ${row.cwd} && ${a.getResumeCommand(row.id)}` : `cd ${row.cwd} && claude --resume ${row.id}`;
-          })(),
+          resumeCommand: this.composeResumeCommand(row.adapter_name, row.id, row.cwd),
           jsonlPath: row.jsonl_path ?? undefined,
           pinned: row.pinned === 1,
         };
