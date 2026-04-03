@@ -419,7 +419,16 @@ export class ChannelRouterImpl implements ChannelRouter {
       console.error(`[ChannelRouter] Failed to route inbound message:`, errMsg);
       // Clear think state on error
       this.streamStates.delete(identityKey);
-      await this.sendToChannel(msg.identity, `⚠️ 消息发送失败: ${errMsg}`);
+
+      // If recovery failed for an error/stopped session, fall back to LobbyManager
+      const session = this.sessionManager.getSessionInfo(sessionId);
+      if (session && (session.status === 'error' || session.status === 'stopped')) {
+        updateBindingActiveSession(this.db, identityKey, null);
+        console.log(`[ChannelRouter] Recovery failed, reset binding ${identityKey} to LobbyManager`);
+        await this.sendToChannel(msg.identity, `⚠️ 会话恢复失败，已切换回 Lobby Manager。`);
+      } else {
+        await this.sendToChannel(msg.identity, `⚠️ 消息发送失败: ${errMsg}`);
+      }
     }
   }
 
