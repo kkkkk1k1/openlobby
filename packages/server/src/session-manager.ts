@@ -44,7 +44,7 @@ export interface ManagedSession {
   permissionMode?: PermissionMode;
   lastMessage?: string;
   origin: 'lobby' | 'cli' | 'lobby-manager';
-  messageMode: MessageMode;
+  messageMode?: MessageMode;
   /** Whether this session is pinned to the top of the sidebar */
   pinned: boolean;
   /** Cumulative token usage for compact threshold tracking */
@@ -191,8 +191,7 @@ export class SessionManager {
   }
 
   private broadcastMessage(sessionId: string, msg: LobbyMessage): void {
-    const session = this.sessions.get(sessionId);
-    const mode = session?.messageMode ?? 'msg-tidy';
+    const mode = this.getSessionMode(sessionId);
 
     // msg-only: suppress tool_use and tool_result (control always passes through)
     if (mode === 'msg-only' && (msg.type === 'tool_use' || msg.type === 'tool_result')) {
@@ -227,7 +226,7 @@ export class SessionManager {
       permissionMode: s.permissionMode ?? undefined,
       cwd: s.cwd,
       origin: s.origin,
-      messageMode: s.messageMode,
+      messageMode: this.getSessionMode(s.id),
       pinned: s.pinned,
       resumeCommand: this.buildResumeCommand(s),
     };
@@ -475,7 +474,7 @@ export class SessionManager {
       model: session.model ?? null,
       tags: null,
       permission_mode: session.permissionMode ?? null,
-      message_mode: session.messageMode,
+      message_mode: session.messageMode ?? null,
       pinned: session.pinned ? 1 : 0,
     });
   }
@@ -509,7 +508,7 @@ export class SessionManager {
       model: options.model,
       permissionMode: options.permissionMode,
       origin,
-      messageMode: (options as any).messageMode ?? (this.db ? (getServerConfig(this.db, 'defaultMessageMode') as MessageMode | undefined) : undefined) ?? 'msg-tidy',
+      messageMode: (options as any).messageMode ?? undefined,
       pinned: false,
       tokenUsage: {
         inputTokens: 0,
@@ -556,7 +555,7 @@ export class SessionManager {
       model: options.model,
       permissionMode: options.permissionMode,
       origin,
-      messageMode: (options as any).messageMode ?? 'msg-tidy',
+      messageMode: (options as any).messageMode ?? undefined,
       pinned: false,
       tokenUsage: {
         inputTokens: 0,
@@ -650,7 +649,7 @@ export class SessionManager {
       model: row.model ?? undefined,
       permissionMode: sessionPermission ?? undefined,
       origin: row.origin as 'lobby' | 'cli' | 'lobby-manager',
-      messageMode: (row.message_mode as MessageMode) ?? 'msg-tidy',
+      messageMode: (row.message_mode as MessageMode) ?? undefined,
       pinned: row.pinned === 1,
       tokenUsage: {
         inputTokens: 0,
@@ -743,7 +742,7 @@ export class SessionManager {
           permissionMode: (row.permission_mode as PermissionMode | null) ?? undefined,
           cwd: row.cwd,
           origin: row.origin as 'lobby' | 'cli',
-          messageMode: (row.message_mode as MessageMode) ?? 'msg-tidy',
+          messageMode: (row.message_mode as MessageMode) ?? this.resolveGlobalMessageMode(),
           resumeCommand: resumeCmd,
           jsonlPath: row.jsonl_path ?? undefined,
           pinned: row.pinned === 1,
@@ -903,7 +902,7 @@ export class SessionManager {
           permissionMode: (row.permission_mode as PermissionMode) ?? undefined,
           cwd: row.cwd,
           origin: (row.origin as ManagedSession['origin']) ?? 'lobby',
-          messageMode: 'msg-tidy',
+          messageMode: (row.message_mode as MessageMode) ?? undefined,
           pinned: row.pinned === 1,
           process: null as unknown as AgentProcess,
           tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, compactCount: 0, compactPrompted: false },
@@ -938,7 +937,7 @@ export class SessionManager {
           permissionMode: (row.permission_mode as PermissionMode | null) ?? undefined,
           cwd: row.cwd,
           origin: row.origin as 'lobby' | 'cli',
-          messageMode: (row.message_mode as MessageMode) ?? 'msg-tidy',
+          messageMode: (row.message_mode as MessageMode) ?? this.resolveGlobalMessageMode(),
           resumeCommand: (() => {
             const a = this.adapters.get(row.adapter_name);
             return a ? `cd ${row.cwd} && ${a.getResumeCommand(row.id)}` : `cd ${row.cwd} && claude --resume ${row.id}`;
@@ -1019,7 +1018,7 @@ export class SessionManager {
           model: row.model ?? undefined,
           permissionMode: (row.permission_mode as PermissionMode | null) ?? undefined,
           origin: row.origin as 'lobby' | 'cli' | 'lobby-manager',
-          messageMode: (row.message_mode as MessageMode) ?? 'msg-tidy',
+          messageMode: (row.message_mode as MessageMode) ?? undefined,
           pinned: row.pinned === 1,
           tokenUsage: {
             inputTokens: 0,
@@ -1130,9 +1129,24 @@ export class SessionManager {
     return meta;
   }
 
+  /**
+   * Resolve the effective message mode for a session.
+   * Resolution chain: session-level override → global default → 'msg-tidy'
+   * (mirrors resolvePermissionMode pattern)
+   */
   getSessionMode(sessionId: string): MessageMode {
     const session = this.sessions.get(sessionId);
-    return session?.messageMode ?? 'msg-tidy';
+    if (session?.messageMode) return session.messageMode;
+    return this.resolveGlobalMessageMode();
+  }
+
+  /** Read the global default message mode from server_config, fallback to 'msg-tidy' */
+  private resolveGlobalMessageMode(): MessageMode {
+    if (this.db) {
+      const defaultMode = getServerConfig(this.db, 'defaultMessageMode') as MessageMode | undefined;
+      if (defaultMode) return defaultMode;
+    }
+    return 'msg-tidy';
   }
 
   async cleanupIdle(maxIdleMinutes: number = 60): Promise<string[]> {

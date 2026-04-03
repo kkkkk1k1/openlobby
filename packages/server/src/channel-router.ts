@@ -8,6 +8,7 @@ import type {
   LobbyMessage,
   SessionSummary,
   MessageMode,
+  PermissionMode,
   CommandGroup,
 } from '@openlobby/core';
 import { toIdentityKey } from '@openlobby/core';
@@ -1114,6 +1115,20 @@ export class ChannelRouterImpl implements ChannelRouter {
 
   /** Route approval notification to IM when web is not viewing the session */
   private routeApprovalToIM(sessionId: string, msg: LobbyMessage): void {
+    // Safety net: if session is in auto/readonly mode, skip IM routing
+    // (mirrors the check in case 'control' of handleSessionMessage)
+    const sessionInfo = this.sessionManager.getSessionInfo(sessionId);
+    if (sessionInfo) {
+      const effectiveMode = this.sessionManager.resolvePermissionMode(
+        sessionInfo.adapterName,
+        sessionInfo.permissionMode as PermissionMode | undefined,
+      );
+      if (effectiveMode === 'auto' || effectiveMode === 'readonly') {
+        console.log(`[ChannelRouter] routeApprovalToIM: skipping — session in ${effectiveMode} mode`);
+        return;
+      }
+    }
+
     // If web is viewing this session, no need to push to IM
     if (this.sessionManager.isSessionViewedOnWeb(sessionId)) return;
 
