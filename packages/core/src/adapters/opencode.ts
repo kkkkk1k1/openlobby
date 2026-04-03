@@ -605,9 +605,10 @@ export class OpenCodeAdapter implements AgentAdapter {
     if (!existsSync(dbPath)) return [];
 
     try {
-      // Query messages joined with parts via sqlite3 CLI
+      // OpenCode stores message/part content in a `data` JSON column.
+      // Query the actual columns and extract fields from JSON in JS.
       const safeId = sessionId.replace(/'/g, "''");
-      const query = `SELECT m.id as msg_id, m.role, m.time_created, m.model_id, p.id as part_id, p.type as part_type, p.content, p.tool FROM message m LEFT JOIN part p ON p.message_id = m.id WHERE m.session_id = '${safeId}' ORDER BY m.time_created ASC, p.rowid ASC;`;
+      const query = `SELECT m.id as msg_id, m.time_created, m.data as msg_data, p.id as part_id, p.data as part_data FROM message m LEFT JOIN part p ON p.message_id = m.id WHERE m.session_id = '${safeId}' ORDER BY m.time_created ASC, p.rowid ASC;`;
 
       const output = execSync(`sqlite3 -json "${dbPath}" "${query}"`, {
         encoding: 'utf-8',
@@ -618,57 +619,60 @@ export class OpenCodeAdapter implements AgentAdapter {
 
       const rows = JSON.parse(output) as Array<{
         msg_id: string;
-        role: string;
         time_created: number;
-        model_id?: string;
-        part_id: string;
-        part_type: string;
-        content: string;
-        tool?: string;
+        msg_data: string;
+        part_id: string | null;
+        part_data: string | null;
       }>;
 
       const messages: LobbyMessage[] = [];
       for (const row of rows) {
-        if (row.part_type === 'text' && row.content) {
+        if (!row.part_data) continue;
+
+        let msgInfo: { role?: string; model?: { modelID?: string } };
+        try { msgInfo = JSON.parse(row.msg_data); } catch { continue; }
+
+        let partInfo: { type?: string; text?: string; tool?: string; callID?: string; state?: { status?: string; input?: Record<string, unknown>; output?: string; error?: string } };
+        try { partInfo = JSON.parse(row.part_data); } catch { continue; }
+
+        const role = msgInfo.role;
+        const modelId = msgInfo.model?.modelID;
+
+        if (partInfo.type === 'text' && partInfo.text) {
           messages.push({
-            id: row.part_id,
+            id: row.part_id!,
             sessionId,
             timestamp: row.time_created,
-            type: row.role === 'user' ? 'user' : 'assistant',
-            content: row.content,
-            meta: row.role === 'assistant' ? { model: row.model_id } : undefined,
+            type: role === 'user' ? 'user' : 'assistant',
+            content: partInfo.text,
+            meta: role === 'assistant' ? { model: modelId } : undefined,
           });
-        } else if (row.part_type === 'tool' && row.content) {
-          try {
-            const state = JSON.parse(row.content);
-            if (state.input) {
-              messages.push({
-                id: `${row.part_id}-use`,
-                sessionId,
-                timestamp: row.time_created,
-                type: 'tool_use',
-                content: JSON.stringify(state.input, null, 2),
-                meta: { toolName: row.tool },
-              });
-            }
-            if (state.output || state.error) {
-              messages.push({
-                id: `${row.part_id}-result`,
-                sessionId,
-                timestamp: row.time_created,
-                type: 'tool_result',
-                content: state.output ?? state.error ?? '',
-                meta: { toolName: row.tool, isError: !!state.error },
-              });
-            }
-          } catch {
-            // Skip malformed tool content
+        } else if (partInfo.type === 'tool' && partInfo.state) {
+          const st = partInfo.state;
+          if (st.status === 'completed' || st.status === 'error') {
+            messages.push({
+              id: `${row.part_id}-use`,
+              sessionId,
+              timestamp: row.time_created,
+              type: 'tool_use',
+              content: JSON.stringify(st.input ?? {}, null, 2),
+              meta: { toolName: partInfo.tool },
+            });
+            messages.push({
+              id: `${row.part_id}-result`,
+              sessionId,
+              timestamp: row.time_created,
+              type: 'tool_result',
+              content: st.output ?? st.error ?? '',
+              meta: { toolName: partInfo.tool, isError: st.status === 'error' },
+            });
           }
         }
       }
 
       return messages;
-    } catch {
+    } catch (err) {
+      console.error('[OpenCode] readHistoryFromDb failed:', err);
       return [];
     }
   }
