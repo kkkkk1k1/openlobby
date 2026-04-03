@@ -241,18 +241,33 @@ function fileName(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1);
 }
 
+/**
+ * Strip Claude Code protocol XML tags that are injected into user turns
+ * but are not user-authored content (system reminders, task notifications, etc.).
+ */
+function stripProtocolTags(text: string): string {
+  // Remove known protocol XML blocks (including multiline content)
+  return text
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
+    .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, '')
+    .replace(/<command-name>[\s\S]*?<\/command-name>/g, '')
+    .replace(/<local-command[\s\S]*?<\/local-command>/g, '')
+    .replace(/^Read the output file to retrieve the result:\s*\/\S+$/gm, '')
+    .trim();
+}
+
 function UserContent({ content }: { content: string }) {
   // Parse [Attached: /path/to/file] patterns
   const attachRegex = /\[Attached:\s*(.+?)\]/g;
   const attachments: string[] = [];
-  let textContent = content;
+  let textContent = stripProtocolTags(content);
   let match: RegExpExecArray | null;
 
-  while ((match = attachRegex.exec(content)) !== null) {
+  while ((match = attachRegex.exec(textContent)) !== null) {
     attachments.push(match[1]);
   }
   if (attachments.length > 0) {
-    textContent = content.replace(attachRegex, '').trim();
+    textContent = textContent.replace(attachRegex, '').trim();
   }
 
   return (
