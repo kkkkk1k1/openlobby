@@ -1521,6 +1521,20 @@ export class ChannelRouterImpl implements ChannelRouter {
     const identityKey = toIdentityKey(identity);
     const parts = callbackData.split(':');
 
+    // ── Session resume callback ──
+    if (parts[0] === 'resume') {
+      const sessionId = parts[1];
+      if (!sessionId) return;
+      console.log(`[ChannelRouter] Resume callback for session ${sessionId} from ${identityKey}`);
+      await this.handleInbound({
+        identity: { channelName: identity.channelName, accountId: identity.accountId, peerId: identity.peerId },
+        externalMessageId: `resume-${sessionId}-${Date.now()}`,
+        text: '继续',
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
     // ── AskUserQuestion callbacks ──
     if (parts[0] === 'askq' || parts[0] === 'askt' || parts[0] === 'askc') {
       const state = this.pendingQuestions.get(identityKey);
