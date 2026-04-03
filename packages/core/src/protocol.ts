@@ -60,7 +60,8 @@ export type ClientMessage =
   | { type: 'wecom.qr-cancel' }
   | { type: 'compact'; sessionId: string; instructions?: string }
   | { type: 'session.pin'; sessionId: string; pinned: boolean }
-  | { type: 'session.rename'; sessionId: string; displayName: string };
+  | { type: 'session.rename'; sessionId: string; displayName: string }
+  | { type: 'session.open-terminal'; sessionId: string };
 
 /** 后端 → 前端 */
 export type ServerMessage =
@@ -83,6 +84,8 @@ export type ServerMessage =
   | { type: 'session.navigate'; sessionId: string }
   | { type: 'lm.status'; available: boolean; sessionId?: string }
   | { type: 'error'; sessionId?: string; error: string }
+  | { type: 'session.open-terminal-result'; sessionId: string; ok: true; terminal: string }
+  | { type: 'session.open-terminal-result'; sessionId: string; ok: false; resumeCommand: string; reason: string }
   | { type: 'channel.providers-list'; providers: ChannelProviderInfo[] }
   | { type: 'channel.provider-status'; providerId: string; healthy: boolean }
   | { type: 'channel.bindings-list'; bindings: ChannelBinding[] }

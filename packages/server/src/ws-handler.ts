@@ -501,6 +501,20 @@ export function handleWebSocket(
           break;
         }
 
+        case 'session.open-terminal': {
+          try {
+            const result = sessionManager.openTerminalSession(data.sessionId);
+            if (result.ok) {
+              send({ type: 'session.open-terminal-result', sessionId: data.sessionId, ok: true, terminal: result.terminal });
+            } else {
+              send({ type: 'session.open-terminal-result', sessionId: data.sessionId, ok: false, resumeCommand: result.resumeCommand, reason: result.reason });
+            }
+          } catch (err) {
+            send({ type: 'session.open-terminal-result', sessionId: data.sessionId, ok: false, resumeCommand: '', reason: err instanceof Error ? err.message : String(err) });
+          }
+          break;
+        }
+
         case 'compact': {
           const compactSessionId = data.sessionId as string;
           const instructions = (data as { instructions?: string }).instructions ?? '';

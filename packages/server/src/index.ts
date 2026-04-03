@@ -7,6 +7,7 @@ import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import type { AgentAdapter } from '@openlobby/core';
 import { SessionManager } from './session-manager.js';
+import { detectTerminal } from './terminal-detector.js';
 import { handleWebSocket } from './ws-handler.js';
 import { initDb, getAllProviders, getAllAdapterPlugins } from './db.js';
 import { createBuiltinAdapters, loadAdapterPlugin } from './adapters/index.js';
@@ -67,6 +68,9 @@ export async function createServer(options: ServerOptions = {}) {
       console.error(`[Plugin] Failed to load adapter "${row.name}":`, err);
     }
   }
+
+  const terminal = detectTerminal();
+  console.log(`Detected terminal: ${terminal.name} (${terminal.id}, available: ${terminal.available})`);
 
   // Initialize session manager with SQLite
   const sessionManager = new SessionManager(db);

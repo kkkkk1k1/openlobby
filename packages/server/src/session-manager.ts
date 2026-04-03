@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { openInTerminal } from './terminal-detector.js';
+import type { OpenResult } from './terminal-detector.js';
 import type {
   AgentAdapter,
   AgentProcess,
@@ -874,6 +876,46 @@ export class SessionManager {
       session.displayName = displayName;
       this.broadcastSessionUpdate(session);
     }
+  }
+
+  /**
+   * Open the user's terminal and run the resume command for the given session.
+   * Detects the terminal that launched the server, with fallback to system default,
+   * then to returning the command for the frontend to display.
+   */
+  openTerminalSession(sessionId: string): OpenResult {
+    // Try in-memory first, then fall back to SQLite for stopped sessions
+    let session = this.sessions.get(sessionId);
+    if (!session && this.db) {
+      const rows = getAllSessions(this.db);
+      const row = rows.find((r) => r.id === sessionId);
+      if (row) {
+        session = {
+          id: row.id,
+          previousIds: [],
+          adapterName: row.adapter_name,
+          displayName: row.display_name ?? row.id.slice(0, 8),
+          status: row.status as ManagedSession['status'],
+          createdAt: row.last_active_at,
+          lastActiveAt: row.last_active_at,
+          messageCount: 0,
+          model: row.model ?? undefined,
+          permissionMode: (row.permission_mode as PermissionMode) ?? undefined,
+          cwd: row.cwd,
+          origin: (row.origin as ManagedSession['origin']) ?? 'lobby',
+          messageMode: 'msg-tidy',
+          pinned: row.pinned === 1,
+          process: null as unknown as AgentProcess,
+          tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, compactCount: 0, compactPrompted: false },
+        };
+      }
+    }
+    if (!session) throw new Error(`Session ${sessionId} not found`);
+
+    const resumeCmd = this.buildResumeCommand(session);
+    if (!resumeCmd) throw new Error('No resume command available');
+
+    return openInTerminal(resumeCmd);
   }
 
   getSessionInfo(sessionId: string): SessionSummary | undefined {
