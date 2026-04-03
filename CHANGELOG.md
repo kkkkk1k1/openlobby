@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.6 (2026-04-03)
+
+### Features
+- Replace IM session error auto-fallback with retry button (81cc56d)
+- Add resume callback handler for IM session retry button (d907237)
+- Fallback to LobbyManager when session recovery fails (e8d209c)
+
+### Bug Fixes
+- Explicitly disable SDK auto-continue on fresh queries (71ca541)
+- Prevent spurious error broadcast during /new session rebuild (11c3ff4)
+- Preserve adapter-specific resume commands (8ff3fb9)
+
+### Documentation
+- Add IM session error retry button design spec (ff4b521)
+- Add implementation plan for IM session error retry button (d5e5db1)
+
 ## v0.4.5 (2026-04-03)
 
 ### Features
