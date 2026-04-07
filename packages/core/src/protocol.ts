@@ -61,7 +61,11 @@ export type ClientMessage =
   | { type: 'compact'; sessionId: string; instructions?: string }
   | { type: 'session.pin'; sessionId: string; pinned: boolean }
   | { type: 'session.rename'; sessionId: string; displayName: string }
-  | { type: 'session.open-terminal'; sessionId: string };
+  | { type: 'session.open-terminal'; sessionId: string }
+  | { type: 'session.open-pty'; sessionId: string; cols: number; rows: number }
+  | { type: 'session.close-pty'; sessionId: string }
+  | { type: 'pty.input'; sessionId: string; data: string }
+  | { type: 'pty.resize'; sessionId: string; cols: number; rows: number };
 
 /** 后端 → 前端 */
 export type ServerMessage =
@@ -96,4 +100,8 @@ export type ServerMessage =
   | { type: 'config.value'; key: string; value: string }
   | { type: 'adapter.defaults'; defaults: Array<{ adapterName: string; permissionMode: string; displayName: string }> }
   | { type: 'adapter.meta'; meta: Record<string, { displayName: string; modeLabels: Record<string, string> }> }
-  | { type: 'wecom.qr-status'; status: 'generating' | 'waiting' | 'success' | 'expired' | 'error'; qrUrl?: string; botId?: string; secret?: string; error?: string };
+  | { type: 'wecom.qr-status'; status: 'generating' | 'waiting' | 'success' | 'expired' | 'error'; qrUrl?: string; botId?: string; secret?: string; error?: string }
+  | { type: 'pty.opened'; sessionId: string }
+  | { type: 'pty.output'; sessionId: string; data: string }
+  | { type: 'pty.closed'; sessionId: string }
+  | { type: 'pty.error'; sessionId: string; error: string };

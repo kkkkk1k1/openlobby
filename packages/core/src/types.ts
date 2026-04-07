@@ -89,6 +89,8 @@ export interface AgentProcess extends EventEmitter {
 
 export type MessageMode = 'msg-total' | 'msg-tidy' | 'msg-only';
 
+export type ViewMode = 'im' | 'terminal';
+
 export interface SessionSummary {
   id: string;
   adapterName: string;
