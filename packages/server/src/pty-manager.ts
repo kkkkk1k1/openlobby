@@ -31,14 +31,13 @@ export class PtyManager {
       return;
     }
 
-    // Parse the resume command into command + args
-    const parts = resumeCommand.match(/(?:[^\s"]+|"[^"]*")+/g) ?? [resumeCommand];
-    const command = parts[0];
-    const args = parts.slice(1).map((a) => a.replace(/^"|"$/g, ''));
+    // Spawn via shell so compound commands like "cd /path && claude --resume id" work.
+    // The cwd is already set on the PTY, so the cd in resumeCommand is redundant but harmless.
+    const shell = process.env.SHELL || '/bin/bash';
 
     let ptyProcess: pty.IPty;
     try {
-      ptyProcess = pty.spawn(command, args, {
+      ptyProcess = pty.spawn(shell, ['-l', '-c', resumeCommand], {
         name: 'xterm-256color',
         cols,
         rows,

@@ -48,7 +48,16 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
 
     // Mount terminal to DOM
     terminal.open(container);
-    fitAddon.fit();
+
+    // Delay fit() until after the browser has computed layout dimensions,
+    // otherwise the container may still have 0×0 size.
+    const rafId = requestAnimationFrame(() => {
+      fitAddon.fit();
+      // Request PTY from server (if not already open) — after fit so cols/rows are correct
+      if (!useLobbyStore.getState().ptyReadyBySession[sessionId]) {
+        wsOpenPty(sessionId, terminal.cols, terminal.rows);
+      }
+    });
 
     // Send user input → PTY
     const inputDisposable = terminal.onData((data) => {
@@ -60,11 +69,6 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
       terminal.write(data);
     });
 
-    // Request PTY from server (if not already open)
-    if (!useLobbyStore.getState().ptyReadyBySession[sessionId]) {
-      wsOpenPty(sessionId, terminal.cols, terminal.rows);
-    }
-
     // Handle container resize
     const resizeObserver = new ResizeObserver(() => {
       fitAddon.fit();
@@ -73,6 +77,7 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
     resizeObserver.observe(container);
 
     return () => {
+      cancelAnimationFrame(rafId);
       inputDisposable.dispose();
       resizeObserver.disconnect();
       unregisterListener(sessionId);
@@ -85,8 +90,8 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
   return (
     <div
       ref={containerRef}
-      className="flex-1 bg-[#0c0c0c]"
-      style={{ minHeight: 0 }}
+      className="flex-1 bg-[#0c0c0c] overflow-hidden"
+      style={{ minHeight: 0, position: 'relative' }}
     />
   );
 }
