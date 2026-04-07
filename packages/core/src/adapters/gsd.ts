@@ -62,6 +62,29 @@ const GSD_COMMANDS: AdapterCommand[] = [
 /** Approval timeout in milliseconds (5 minutes) */
 const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
 
+/** Binary candidates — gsd-pi installs as both `gsd` and `gsd-cli` */
+const GSD_BIN_CANDIDATES = ['gsd', 'gsd-cli'] as const;
+
+/**
+ * Detect the GSD binary. Returns the first candidate that resolves successfully.
+ * Caches the result for the process lifetime.
+ */
+let cachedBin: { bin: string; version: string; path: string } | null = null;
+function detectGsdBin(): { bin: string; version: string; path: string } | null {
+  if (cachedBin) return cachedBin;
+  for (const bin of GSD_BIN_CANDIDATES) {
+    try {
+      const version = execSync(`${bin} --version`, { encoding: 'utf-8', timeout: 5000 }).trim();
+      const binPath = execSync(`which ${bin}`, { encoding: 'utf-8', timeout: 5000 }).trim();
+      cachedBin = { bin, version, path: binPath };
+      return cachedBin;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 // ──────────────────────────────────────────────
 // GsdProcess
 // ──────────────────────────────────────────────
@@ -134,7 +157,11 @@ class GsdProcess extends EventEmitter implements AgentProcess {
       env.ANTHROPIC_AUTH_TOKEN = this.spawnOptions.apiKey;
     }
 
-    this.childProcess = spawnChild('gsd', args, {
+    const detected = detectGsdBin();
+    const bin = detected?.bin ?? 'gsd';
+    console.log('[GSD] Spawning:', bin, args.join(' '));
+
+    this.childProcess = spawnChild(bin, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: this.spawnOptions.cwd,
       env,
@@ -616,13 +643,11 @@ export class GsdAdapter implements AgentAdapter {
   };
 
   async detect(): Promise<{ installed: boolean; version?: string; path?: string }> {
-    try {
-      const version = execSync('gsd --version', { encoding: 'utf-8' }).trim();
-      const cliPath = execSync('which gsd', { encoding: 'utf-8' }).trim();
-      return { installed: true, version, path: cliPath };
-    } catch {
-      return { installed: false };
+    const detected = detectGsdBin();
+    if (detected) {
+      return { installed: true, version: detected.version, path: detected.path };
     }
+    return { installed: false };
   }
 
   async spawn(options: SpawnOptions): Promise<AgentProcess> {
@@ -683,7 +708,8 @@ export class GsdAdapter implements AgentAdapter {
   }
 
   getResumeCommand(sessionId: string): string {
-    return `gsd --resume ${sessionId}`;
+    const bin = detectGsdBin()?.bin ?? 'gsd';
+    return `${bin} --resume ${sessionId}`;
   }
 
   async listCommands(): Promise<AdapterCommand[]> {
