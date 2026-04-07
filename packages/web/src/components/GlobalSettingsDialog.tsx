@@ -56,6 +56,7 @@ export default function GlobalSettingsDialog({ onClose }: Props) {
               <option value="claude-code">Claude Code</option>
               <option value="codex-cli">Codex CLI</option>
               <option value="opencode">OpenCode</option>
+              <option value="gsd">GSD</option>
             </select>
             <p className="text-xs text-gray-500 mt-1">
               Affects new sessions and Lobby Manager
