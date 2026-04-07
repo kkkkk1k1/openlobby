@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.5.0 (2026-04-07)
+
+### Features
+- Add GSD adapter with GsdProcess and GsdAdapter (cdfaf74)
+- Register GSD adapter in core exports and server builtins (579dcc6)
+- Add GSD to MCP tool schemas and LobbyManager system prompt (c70b268)
+- Add GSD adapter labels to frontend UI components (207898e)
+- Add GSD adapter contract test and fix core re-export (2847de6)
+- Add Terminal mode — PTY session lifecycle, xterm.js TerminalView, IM/Terminal toggle (9aacab0..795b6c0)
+- Add default view mode configuration (IM/Terminal) (eaf07cf)
+
+### Bug Fixes
+- Use interactive shell for PTY resume to show real-time output (a48afa1)
+- Add node-pty to onlyBuiltDependencies alongside esbuild (9515e2a)
+- Support both gsd and gsd-cli binary names (6cc9436)
+- Add GSD label to SessionRow in DiscoverDialog (7420ef8)
+- Add GSD option to default adapter dropdown in GlobalSettingsDialog (549e18f)
+- Address code review issues in GSD adapter (febf7a0)
+- Move default view mode to global settings and auto-focus terminal (2601498)
+- Spawn PTY via shell to handle compound resume commands (6db5e2a)
+- Add node-pty to CLI package dependencies (0785f98)
+- Mark node-pty as external in esbuild bundle (47268a6)
+
+### Documentation
+- Add GSD adapter design spec and implementation plan (466dfc8)
+- Add terminal mode design spec and implementation plan (daba721, 5564d47)
+
 ## v0.4.6 (2026-04-03)
 
 ### Features
