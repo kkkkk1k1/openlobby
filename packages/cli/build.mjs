@@ -20,6 +20,7 @@ await build({
   outfile: join(__dirname, 'dist', 'bin.js'),
   external: [
     'better-sqlite3',
+    'node-pty',
     // Native / optional deps that shouldn't be bundled
     'fsevents',
   ],
