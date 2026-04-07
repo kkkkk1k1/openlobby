@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLobbyStore } from '../stores/lobby-store';
-import { wsDestroySession, wsConfigureSession, wsOpenTerminal } from '../hooks/useWebSocket';
+import { wsDestroySession, wsConfigureSession, wsOpenTerminal, wsSetConfig } from '../hooks/useWebSocket';
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -28,6 +28,10 @@ export default function RoomHeader() {
     s.activeSessionId ? s.sessions[s.activeSessionId] : undefined,
   );
   const isLM = session?.origin === 'lobby-manager';
+  const viewMode = useLobbyStore((s) =>
+    activeSessionId ? (s.viewModeBySession[activeSessionId] ?? 'im') : 'im',
+  );
+  const setViewMode = useLobbyStore((s) => s.setViewMode);
   const adapterMeta = useLobbyStore((s) => s.adapterPermissionMeta);
   const adapterDefaults = useLobbyStore((s) => s.adapterDefaults);
   const terminalFailDialog = useLobbyStore((s) => s.terminalFailDialog);
@@ -125,6 +129,30 @@ export default function RoomHeader() {
       </div>
 
       <div className="flex items-center gap-2">
+        {!isLM && (
+          <div className="flex items-center bg-gray-800 rounded-md p-0.5">
+            <button
+              onClick={() => activeSessionId && setViewMode(activeSessionId, 'im')}
+              className={`text-xs px-2 py-1 rounded transition-colors ${
+                viewMode === 'im'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              IM
+            </button>
+            <button
+              onClick={() => activeSessionId && setViewMode(activeSessionId, 'terminal')}
+              className={`text-xs px-2 py-1 rounded transition-colors ${
+                viewMode === 'terminal'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              Terminal
+            </button>
+          </div>
+        )}
         {session.resumeCommand && (
           <button
             onClick={handleOpenTerminal}
@@ -207,6 +235,20 @@ export default function RoomHeader() {
                   <option value="msg-tidy">Tidy (collapse tools)</option>
                   <option value="msg-only">Messages only</option>
                   <option value="msg-total">All messages</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Default View Mode</label>
+                <select
+                  value={useLobbyStore.getState().serverConfig['defaultViewMode'] ?? 'im'}
+                  onChange={(e) => {
+                    wsSetConfig('defaultViewMode', e.target.value);
+                    useLobbyStore.getState().setServerConfigValue('defaultViewMode', e.target.value);
+                  }}
+                  className="w-full bg-gray-800 text-gray-100 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="im">IM (chat bubbles)</option>
+                  <option value="terminal">Terminal</option>
                 </select>
               </div>
               <button

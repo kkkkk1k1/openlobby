@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar';
 import RoomHeader from './components/RoomHeader';
 import MessageList from './components/MessageList';
 import MessageInput from './components/MessageInput';
+import TerminalView from './components/TerminalView';
 
 const WS_URL =
   import.meta.env.VITE_WS_URL ??
@@ -23,6 +24,10 @@ export default function App() {
     activeSession != null &&
     activeSession.status !== 'stopped' &&
     activeSession.status !== 'error';
+
+  const viewMode = useLobbyStore((s) =>
+    s.activeSessionId ? (s.viewModeBySession[s.activeSessionId] ?? 'im') : 'im',
+  );
 
   const handleChoiceSelect = useCallback(
     (label: string) => {
@@ -48,33 +53,39 @@ export default function App() {
 
         {activeSessionId ? (
           <>
-            <MessageList
-              sessionId={activeSessionId}
-              onControlRespond={wsRespondControl}
-              onChoiceSelect={handleChoiceSelect}
-            />
-            {!isSessionAlive && activeSession && (activeSession.status === 'stopped' || activeSession.status === 'error') && (
-              <div className="flex items-center justify-center gap-3 px-4 py-2 bg-gray-900 border-t border-gray-700">
-                <span className="text-xs text-gray-400">
-                  Session {activeSession.status === 'error' ? 'errored' : 'stopped'}.
-                </span>
-                <button
-                  onClick={() => wsRecoverSession(activeSessionId)}
-                  className="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-                >
-                  Recover to Idle
-                </button>
-              </div>
+            {viewMode === 'terminal' ? (
+              <TerminalView sessionId={activeSessionId} />
+            ) : (
+              <>
+                <MessageList
+                  sessionId={activeSessionId}
+                  onControlRespond={wsRespondControl}
+                  onChoiceSelect={handleChoiceSelect}
+                />
+                {!isSessionAlive && activeSession && (activeSession.status === 'stopped' || activeSession.status === 'error') && (
+                  <div className="flex items-center justify-center gap-3 px-4 py-2 bg-gray-900 border-t border-gray-700">
+                    <span className="text-xs text-gray-400">
+                      Session {activeSession.status === 'error' ? 'errored' : 'stopped'}.
+                    </span>
+                    <button
+                      onClick={() => wsRecoverSession(activeSessionId)}
+                      className="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                    >
+                      Recover to Idle
+                    </button>
+                  </div>
+                )}
+                <MessageInput
+                  onSend={(content) => wsSendMessage(activeSessionId, content)}
+                  disabled={!connected || !isSessionAlive}
+                  placeholder={
+                    isSessionAlive
+                      ? undefined
+                      : 'Session has ended. Create a new session to continue.'
+                  }
+                />
+              </>
             )}
-            <MessageInput
-              onSend={(content) => wsSendMessage(activeSessionId, content)}
-              disabled={!connected || !isSessionAlive}
-              placeholder={
-                isSessionAlive
-                  ? undefined
-                  : 'Session has ended. Create a new session to continue.'
-              }
-            />
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center">
