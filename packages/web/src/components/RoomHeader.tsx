@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLobbyStore } from '../stores/lobby-store';
-import { wsDestroySession, wsConfigureSession, wsOpenTerminal, wsSetConfig } from '../hooks/useWebSocket';
+import { wsDestroySession, wsConfigureSession, wsOpenTerminal } from '../hooks/useWebSocket';
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -235,20 +235,6 @@ export default function RoomHeader() {
                   <option value="msg-tidy">Tidy (collapse tools)</option>
                   <option value="msg-only">Messages only</option>
                   <option value="msg-total">All messages</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Default View Mode</label>
-                <select
-                  value={useLobbyStore.getState().serverConfig['defaultViewMode'] ?? 'im'}
-                  onChange={(e) => {
-                    wsSetConfig('defaultViewMode', e.target.value);
-                    useLobbyStore.getState().setServerConfigValue('defaultViewMode', e.target.value);
-                  }}
-                  className="w-full bg-gray-800 text-gray-100 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="im">IM (chat bubbles)</option>
-                  <option value="terminal">Terminal</option>
                 </select>
               </div>
               <button

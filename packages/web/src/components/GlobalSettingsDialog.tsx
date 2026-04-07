@@ -12,6 +12,7 @@ export default function GlobalSettingsDialog({ onClose }: Props) {
   const adapterMeta = useLobbyStore((s) => s.adapterPermissionMeta);
   const [defaultAdapter, setDefaultAdapter] = useState(serverConfig.defaultAdapter ?? 'claude-code');
   const [defaultMessageMode, setDefaultMessageMode] = useState(serverConfig.defaultMessageMode ?? 'msg-tidy');
+  const [defaultViewMode, setDefaultViewMode] = useState(serverConfig.defaultViewMode ?? 'im');
   const [showConfirm, setShowConfirm] = useState(false);
   const [pendingAdapter, setPendingAdapter] = useState('');
 
@@ -72,6 +73,25 @@ export default function GlobalSettingsDialog({ onClose }: Props) {
               <option value="msg-tidy">Tidy (collapse tool calls)</option>
               <option value="msg-only">Messages only</option>
               <option value="msg-total">All messages</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Default for newly created sessions
+            </p>
+          </div>
+
+          {/* Default View Mode */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Default View Mode</label>
+            <select
+              value={defaultViewMode}
+              onChange={(e) => {
+                setDefaultViewMode(e.target.value);
+                wsSetConfig('defaultViewMode', e.target.value);
+              }}
+              className="w-full bg-gray-800 text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="im">IM (chat bubbles)</option>
+              <option value="terminal">Terminal</option>
             </select>
             <p className="text-xs text-gray-500 mt-1">
               Default for newly created sessions

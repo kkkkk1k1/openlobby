@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -9,17 +9,25 @@ interface TerminalViewProps {
   sessionId: string;
 }
 
-// Cache xterm instances so switching back to terminal mode preserves state
-const terminalCache = new Map<string, { terminal: Terminal; fitAddon: FitAddon }>();
+interface CachedTerminal {
+  terminal: Terminal;
+  fitAddon: FitAddon;
+  /** The wrapper element created by xterm.js — we re-parent this on re-mount */
+  element: HTMLDivElement | null;
+  opened: boolean;
+}
+
+// Cache xterm instances so switching IM/Terminal or switching sessions preserves state
+const terminalCache = new Map<string, CachedTerminal>();
 
 export default function TerminalView({ sessionId }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const ptyReady = useLobbyStore((s) => s.ptyReadyBySession[sessionId] ?? false);
-  const registerListener = useLobbyStore((s) => s.registerPtyOutputListener);
-  const unregisterListener = useLobbyStore((s) => s.unregisterPtyOutputListener);
 
-  // Get or create terminal instance
-  const getTerminal = useCallback(() => {
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Get or create cached terminal
     let cached = terminalCache.get(sessionId);
     if (!cached) {
       const terminal = new Terminal({
@@ -34,42 +42,45 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
       });
       const fitAddon = new FitAddon();
       terminal.loadAddon(fitAddon);
-      cached = { terminal, fitAddon };
+      cached = { terminal, fitAddon, element: null, opened: false };
       terminalCache.set(sessionId, cached);
     }
-    return cached;
-  }, [sessionId]);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const { terminal, fitAddon } = cached;
 
-    const { terminal, fitAddon } = getTerminal();
+    if (!cached.opened) {
+      // First mount: let xterm create its DOM inside the container
+      terminal.open(container);
+      cached.element = container.querySelector('.xterm') as HTMLDivElement;
+      cached.opened = true;
+    } else if (cached.element) {
+      // Re-mount: move the existing xterm DOM element back into the container
+      container.appendChild(cached.element);
+    }
 
-    // Mount terminal to DOM
-    terminal.open(container);
-
-    // Delay fit() until after the browser has computed layout dimensions,
-    // otherwise the container may still have 0×0 size.
+    // Fit after layout is computed, then focus
     const rafId = requestAnimationFrame(() => {
       fitAddon.fit();
-      // Request PTY from server (if not already open) — after fit so cols/rows are correct
+      terminal.focus();
+
+      // Request PTY from server if not already open
       if (!useLobbyStore.getState().ptyReadyBySession[sessionId]) {
         wsOpenPty(sessionId, terminal.cols, terminal.rows);
       }
     });
 
-    // Send user input → PTY
+    // User input → PTY
     const inputDisposable = terminal.onData((data) => {
       wsPtyInput(sessionId, data);
     });
 
-    // Register PTY output listener so WebSocket data → xterm
-    registerListener(sessionId, (data: string) => {
+    // PTY output → xterm (register listener in Zustand for WebSocket handler to call)
+    const store = useLobbyStore.getState();
+    store.registerPtyOutputListener(sessionId, (data: string) => {
       terminal.write(data);
     });
 
-    // Handle container resize
+    // Resize handling
     const resizeObserver = new ResizeObserver(() => {
       fitAddon.fit();
       wsPtyResize(sessionId, terminal.cols, terminal.rows);
@@ -80,18 +91,20 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
       cancelAnimationFrame(rafId);
       inputDisposable.dispose();
       resizeObserver.disconnect();
-      unregisterListener(sessionId);
-      // Don't dispose terminal — keep it cached for re-mount
-      // Just detach from DOM by clearing the container
-      container.innerHTML = '';
+      useLobbyStore.getState().unregisterPtyOutputListener(sessionId);
+
+      // Detach xterm DOM from container (but don't destroy it — cached for re-mount)
+      if (cached!.element && container.contains(cached!.element)) {
+        container.removeChild(cached!.element);
+      }
     };
-  }, [sessionId, getTerminal, registerListener, unregisterListener]);
+  }, [sessionId]);
 
   return (
     <div
       ref={containerRef}
       className="flex-1 bg-[#0c0c0c] overflow-hidden"
-      style={{ minHeight: 0, position: 'relative' }}
+      style={{ minHeight: 0 }}
     />
   );
 }
