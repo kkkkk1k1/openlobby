@@ -31,13 +31,13 @@ export class PtyManager {
       return;
     }
 
-    // Spawn via shell so compound commands like "cd /path && claude --resume id" work.
-    // The cwd is already set on the PTY, so the cd in resumeCommand is redundant but harmless.
+    // Spawn an interactive login shell, then feed the resume command as input.
+    // This lets the user see the shell prompt and the resume process in real time.
     const shell = process.env.SHELL || '/bin/bash';
 
     let ptyProcess: pty.IPty;
     try {
-      ptyProcess = pty.spawn(shell, ['-l', '-c', resumeCommand], {
+      ptyProcess = pty.spawn(shell, ['-l'], {
         name: 'xterm-256color',
         cols,
         rows,
@@ -72,6 +72,9 @@ export class PtyManager {
     });
 
     this.sendToClient(client, { type: 'pty.opened', sessionId });
+
+    // Feed resume command into the shell so the user sees it being executed
+    ptyProcess.write(resumeCommand + '\n');
   }
 
   /** Write user input to PTY stdin */
