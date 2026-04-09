@@ -227,6 +227,7 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
         const params: any = {
           cwd: this.spawnOptions.cwd,
           approvalPolicy: this.mapPermissionMode(this.spawnOptions.permissionMode),
+          sandbox: this.mapSandboxMode(this.spawnOptions.permissionMode),
         };
         if (this.spawnOptions.model) {
           params.model = this.spawnOptions.model;
@@ -844,6 +845,23 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
       default: return 'on-request';
     }
   }
+
+  /**
+   * Map OpenLobby permission mode to Codex sandbox mode.
+   * - auto → danger-full-access (equivalent to --yolo: no sandbox restrictions)
+   * - supervised → workspace-write (equivalent to --full-auto: sandboxed writes)
+   * - readonly → read-only (no write access)
+   */
+  private mapSandboxMode(mode?: string): string {
+    switch (mode) {
+      case 'auto': return 'danger-full-access';
+      case 'bypassPermissions': return 'danger-full-access';
+      case 'dontAsk': return 'danger-full-access';
+      case 'readonly': return 'read-only';
+      case 'plan': return 'read-only';
+      default: return 'workspace-write';
+    }
+  }
 }
 
 // ──────────────────────────────────────────────
@@ -855,9 +873,9 @@ export class CodexCliAdapter implements AgentAdapter {
   readonly displayName = 'Codex CLI';
   readonly permissionMeta: AdapterPermissionMeta = {
     modeLabels: {
-      auto: 'never',
-      supervised: 'on-request',
-      readonly: 'on-request + plan',
+      auto: 'yolo (no sandbox)',
+      supervised: 'full-auto (sandboxed)',
+      readonly: 'read-only sandbox + plan',
     },
   };
 

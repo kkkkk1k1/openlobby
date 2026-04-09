@@ -130,23 +130,19 @@ class GsdProcess extends EventEmitter implements AgentProcess {
    * Spawn the GSD headless subprocess and wire up stdout/stderr/exit handlers.
    */
   async init(mode: 'spawn' | 'resume', resumeSessionId?: string): Promise<void> {
-    const args = ['headless', '--supervised', '--output-format', 'stream-json'];
+    // GSD CLI v2.x uses `--mode json` for structured output and `--continue` to resume.
+    // It does NOT support --supervised, --output-format, --auto-approve, --readonly, --resume.
+    const args: string[] = [];
 
     if (mode === 'resume' && resumeSessionId) {
-      args.push('--resume', resumeSessionId);
+      args.push('--continue');
+    } else {
+      args.push('--mode', 'json');
     }
 
-    // Map permission mode to GSD's native flags
+    // Map permission mode — GSD doesn't have native supervised/readonly flags,
+    // so we rely on OpenLobby's own approval flow via handleExtensionUiRequest.
     const permMode = this.spawnOptions.permissionMode ?? 'supervised';
-    if (permMode === 'auto') {
-      // Replace --supervised with auto-approve semantics
-      const idx = args.indexOf('--supervised');
-      if (idx !== -1) args.splice(idx, 1);
-      args.push('--auto-approve');
-    } else if (permMode === 'readonly') {
-      args.push('--readonly');
-    }
-    // 'supervised' is the default (--supervised already in args)
 
     if (this.spawnOptions.model) {
       args.push('--model', this.spawnOptions.model);
@@ -708,8 +704,10 @@ export class GsdAdapter implements AgentAdapter {
   }
 
   getResumeCommand(sessionId: string): string {
+    // GSD CLI uses `--continue` to resume the most recent session.
+    // We include the session ID for informational display in the UI.
     const bin = detectGsdBin()?.bin ?? 'gsd';
-    return `${bin} --resume ${sessionId}`;
+    return `${bin} --continue  # session: ${sessionId}`;
   }
 
   async listCommands(): Promise<AdapterCommand[]> {
@@ -826,6 +824,15 @@ export class GsdAdapter implements AgentAdapter {
   /**
    * Synchronously read the first 64KB of a GSD session JSONL to extract metadata.
    */
+  /**
+   * Synchronously read the first 64KB of a GSD session JSONL to extract metadata.
+   *
+   * GSD session JSONL format (v3):
+   *   Line 1: {"type":"session","version":3,"id":"<uuid>","cwd":"...","timestamp":"..."}
+   *   Subsequent: {"type":"message","message":{"role":"user|assistant","content":[...],...}}
+   *               {"type":"model_change","provider":"...","modelId":"..."}
+   *               {"type":"thinking_level_change","thinkingLevel":"..."}
+   */
   private extractSessionMeta(filePath: string): {
     sessionId: string;
     cwd: string;
@@ -853,30 +860,57 @@ export class GsdAdapter implements AgentAdapter {
       let messageCount = 0;
       let lastMessage: string | undefined;
 
-      for (const line of lines.slice(0, 20)) {
+      for (const line of lines.slice(0, 50)) {
         try {
-          const obj = JSON.parse(line);
-          if (obj.session_id && !sessionId) sessionId = obj.session_id;
-          if (obj.id && !sessionId) sessionId = obj.id;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const obj: any = JSON.parse(line);
 
-          // init_result event
+          // GSD v3 session header: {"type":"session","id":"...","cwd":"..."}
+          if (obj.type === 'session') {
+            if (obj.id) sessionId = obj.id;
+            if (obj.cwd) cwd = obj.cwd;
+            continue;
+          }
+
+          // Model change event: {"type":"model_change","modelId":"..."}
+          if (obj.type === 'model_change') {
+            if (!model && obj.modelId) model = obj.modelId;
+            continue;
+          }
+
+          // Message event: {"type":"message","message":{"role":"user|assistant",...}}
+          if (obj.type === 'message' && obj.message) {
+            const role = obj.message.role as string | undefined;
+            if (role === 'user') {
+              messageCount++;
+              // Extract text from content blocks
+              const contentBlocks = obj.message.content;
+              if (Array.isArray(contentBlocks)) {
+                for (const block of contentBlocks) {
+                  if (block.type === 'text' && block.text) {
+                    lastMessage = (block.text as string).slice(0, 100);
+                    break;
+                  }
+                }
+              } else if (typeof obj.message.content === 'string') {
+                lastMessage = obj.message.content.slice(0, 100);
+              }
+            } else if (role === 'assistant') {
+              messageCount++;
+              if (!model && obj.message.model) model = obj.message.model;
+            }
+            continue;
+          }
+
+          // Fallback: legacy streaming format compatibility
           if (obj.type === 'init_result') {
             if (obj.session_id) sessionId = obj.session_id;
             if (obj.cwd) cwd = obj.cwd;
             if (obj.model) model = obj.model;
           }
-
           if (obj.cwd && !cwd) cwd = obj.cwd;
-          if (obj.model && !model) model = obj.model;
-
-          // Count meaningful events
-          if (obj.type === 'execution_complete' || obj.type === 'agent_end'
-            || obj.type === 'message_update' || obj.type === 'tool_execution_end') {
-            messageCount++;
-          }
-
-          // Extract user message for display
           if (obj.type === 'user_message') {
+            messageCount++;
             const text = typeof obj.content === 'string' ? obj.content : '';
             if (text) lastMessage = text.slice(0, 100);
           }
@@ -895,24 +929,44 @@ export class GsdAdapter implements AgentAdapter {
     }
   }
 
+  /**
+   * Convert a GSD JSONL line to LobbyMessage[].
+   *
+   * GSD session JSONL uses a stored format (different from the streaming headless format):
+   *   {"type":"session","id":"...","cwd":"..."}              → system
+   *   {"type":"message","message":{"role":"user",...}}        → user
+   *   {"type":"message","message":{"role":"assistant",...}}   → assistant / tool_use / tool_result
+   *   {"type":"model_change","modelId":"..."}                → skipped (metadata)
+   *   {"type":"thinking_level_change","thinkingLevel":"..."}  → skipped (metadata)
+   */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private jsonlLineToLobbyMessages(sessionId: string, obj: any): LobbyMessage[] {
     const type = obj.type as string | undefined;
     const timestamp = obj.timestamp ? new Date(obj.timestamp).getTime() : Date.now();
     const id = obj.id ?? randomUUID();
 
-    if (!type) {
-      // Session header line
-      if (obj.session_id) {
-        return [makeLobbyMessage(sessionId, 'system', {
-          sessionId: obj.session_id,
-          model: obj.model,
-        })];
-      }
-      return [];
-    }
+    if (!type) return [];
 
     switch (type) {
+      // ── GSD v3 stored format ──
+
+      case 'session':
+        return [makeLobbyMessage(sessionId, 'system', {
+          sessionId: obj.id ?? sessionId,
+          model: obj.model,
+          cwd: obj.cwd,
+        })];
+
+      case 'message':
+        return this.convertGsdMessage(sessionId, obj, id, timestamp);
+
+      case 'model_change':
+      case 'thinking_level_change':
+        // Internal metadata — skip
+        return [];
+
+      // ── Legacy streaming format fallback ──
+
       case 'init_result':
         return [makeLobbyMessage(sessionId, 'system', {
           sessionId: obj.session_id ?? sessionId,
@@ -974,6 +1028,114 @@ export class GsdAdapter implements AgentAdapter {
           content: { error: obj.message ?? obj.error ?? 'Unknown error' },
           meta: { isError: true },
         }];
+    }
+
+    return [];
+  }
+
+  /**
+   * Convert a GSD v3 "message" event to LobbyMessage[].
+   * The message.content array can contain text, tool_use, and tool_result blocks
+   * (same as Claude API format).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private convertGsdMessage(sessionId: string, obj: any, id: string, timestamp: number): LobbyMessage[] {
+    const msg = obj.message;
+    if (!msg) return [];
+
+    const role = msg.role as string | undefined;
+    const model = msg.model as string | undefined;
+    const contentBlocks = msg.content;
+    const usage = msg.usage;
+
+    if (role === 'user') {
+      // Extract text from content blocks
+      let text = '';
+      if (typeof contentBlocks === 'string') {
+        text = contentBlocks;
+      } else if (Array.isArray(contentBlocks)) {
+        const parts: string[] = [];
+        for (const block of contentBlocks) {
+          if (block.type === 'text' && block.text) {
+            parts.push(block.text);
+          }
+        }
+        text = parts.join('\n');
+      }
+      if (!text) return [];
+      return [{ id, sessionId, timestamp, type: 'user', content: text }];
+    }
+
+    if (role === 'assistant') {
+      const results: LobbyMessage[] = [];
+
+      // Handle error messages (stopReason === 'error')
+      if (msg.stopReason === 'error' && msg.errorMessage) {
+        results.push({
+          id: `${id}-error`,
+          sessionId,
+          timestamp,
+          type: 'system',
+          content: { error: msg.errorMessage },
+          meta: { isError: true, model },
+        });
+        return results;
+      }
+
+      if (Array.isArray(contentBlocks)) {
+        for (const block of contentBlocks) {
+          if (block.type === 'text' && block.text) {
+            results.push({
+              id: `${id}-text-${results.length}`,
+              sessionId,
+              timestamp,
+              type: 'assistant',
+              content: block.text,
+              meta: { model },
+            });
+          } else if (block.type === 'tool_use') {
+            results.push({
+              id: `${id}-tool-${block.id ?? results.length}`,
+              sessionId,
+              timestamp,
+              type: 'tool_use',
+              content: JSON.stringify(block.input ?? {}, null, 2),
+              meta: { toolName: block.name },
+            });
+          } else if (block.type === 'tool_result') {
+            const resultContent = Array.isArray(block.content)
+              ? block.content.map((c: { text?: string }) => c.text ?? '').join('\n')
+              : typeof block.content === 'string' ? block.content : '';
+            results.push({
+              id: `${id}-result-${block.tool_use_id ?? results.length}`,
+              sessionId,
+              timestamp,
+              type: 'tool_result',
+              content: resultContent,
+              meta: { isError: block.is_error ?? false },
+            });
+          }
+        }
+      }
+
+      // If assistant had empty content but has usage, still emit a result marker
+      if (results.length === 0 && usage) {
+        const costData = usage.cost;
+        results.push({
+          id,
+          sessionId,
+          timestamp,
+          type: 'result',
+          content: msg.stopReason === 'error' ? (msg.errorMessage ?? 'Error') : 'Completed',
+          meta: {
+            model,
+            costUsd: costData?.total,
+            tokenUsage: { input: usage.input ?? 0, output: usage.output ?? 0 },
+          },
+        });
+      }
+
+      return results;
     }
 
     return [];
