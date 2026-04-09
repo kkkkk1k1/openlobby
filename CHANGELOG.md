@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.5.1 (2026-04-09)
+
+### Features
+- Add Codex CLI sandbox mode mapping (permission modes → sandbox parameter) (b4e6dd0)
+- Update GSD adapter for v3 JSONL session format with structured message parsing (b4e6dd0)
+- Update Codex permission mode labels to reflect sandbox semantics (b4e6dd0)
+
 ## v0.5.0 (2026-04-07)
 
 ### Features
