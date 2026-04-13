@@ -4,6 +4,7 @@ import { execSync, spawn as cpSpawn } from 'node:child_process';
 import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join, basename } from 'node:path';
+import { homedir } from 'node:os';
 import type {
   AgentAdapter,
   AgentProcess,
@@ -227,6 +228,13 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
   constructor(sessionId: string, options: ClaudeCodeSpawnOptions, private claudeCliPath?: string) {
     super();
     this.sessionId = sessionId;
+    // Expand leading ~ to home directory (Node.js does not expand shell tildes)
+    const cwd = options.cwd;
+    if (cwd === '~') {
+      options = { ...options, cwd: homedir() };
+    } else if (cwd.startsWith('~/')) {
+      options = { ...options, cwd: homedir() + cwd.slice(1) };
+    }
     this.spawnOptions = options;
     // NOTE: Do NOT start query here. The caller must wire events first,
     // then call sendMessage() to avoid a race condition where messages
@@ -1023,7 +1031,9 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
           // Extract cwd from the first message that has it
           if (!cwd && typeof obj.cwd === 'string' && obj.cwd) {
-            cwd = obj.cwd;
+            // Expand ~ to home directory (JSONL may store paths with tilde)
+            const raw = obj.cwd as string;
+            cwd = raw === '~' ? homedir() : raw.startsWith('~/') ? homedir() + raw.slice(1) : raw;
           }
 
           if (obj.type === 'user' && !obj.isMeta && obj.message?.content) {

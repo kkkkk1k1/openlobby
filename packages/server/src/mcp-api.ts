@@ -1,7 +1,15 @@
 import Fastify from 'fastify';
 import { mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import type { SessionManager } from './session-manager.js';
 import type { ChannelRouterImpl } from './channel-router.js';
+
+/** Expand leading `~` or `~/` to the user's home directory */
+function expandTilde(p: string): string {
+  if (p === '~') return homedir();
+  if (p.startsWith('~/')) return homedir() + p.slice(1);
+  return p;
+}
 
 export interface McpApiHandle {
   setChannelRouter(router: ChannelRouterImpl): void;
@@ -29,7 +37,8 @@ export async function startMcpApi(
   app.get<{ Querystring: { cwd?: string } }>(
     '/api/sessions/discover',
     async (request) => {
-      const discovered = await sessionManager.discoverSessions(request.query.cwd);
+      const cwd = request.query.cwd ? expandTilde(request.query.cwd) : undefined;
+      const discovered = await sessionManager.discoverSessions(cwd);
       return discovered;
     },
   );
@@ -54,8 +63,9 @@ export async function startMcpApi(
       navigate?: boolean;
     };
   }>('/api/sessions', async (request, reply) => {
-    const { adapter, cwd, name, model, initialPrompt, navigate } = request.body;
+    const { adapter, cwd: rawCwd, name, model, initialPrompt, navigate } = request.body;
     try {
+      const cwd = expandTilde(rawCwd);
       // Auto-create directory if not exists
       mkdirSync(cwd, { recursive: true });
 
@@ -136,7 +146,9 @@ export async function startMcpApi(
       jsonlPath?: string;
     };
   }>('/api/sessions/import', async (request) => {
-    return sessionManager.importSession(request.body);
+    const body = { ...request.body };
+    if (body.cwd) body.cwd = expandTilde(body.cwd);
+    return sessionManager.importSession(body);
   });
 
   // Navigate web UI to a specific session
