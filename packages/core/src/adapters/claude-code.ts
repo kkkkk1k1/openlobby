@@ -275,6 +275,15 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
       // internal logs for root-cause analysis (e.g. auth failures).
       subprocessEnv.DEBUG_CLAUDE_AGENT_SDK = '1';
 
+      // Claude Code 2.1+ refuses --dangerously-skip-permissions when running as
+      // root unless IS_SANDBOX=1 (or CLAUDE_CODE_BUBBLEWRAP) is set. OpenLobby
+      // is commonly deployed in containers/VPS as root, and 'auto' permission
+      // mode maps to bypassPermissions, so without this opt-in every auto-mode
+      // session (including LobbyManager) instantly exits with code 1.
+      if (subprocessEnv.IS_SANDBOX === undefined) {
+        subprocessEnv.IS_SANDBOX = '1';
+      }
+
       // Reset stderr buffer for this query
       this.stderrChunks = [];
 
