@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.2 (2026-04-13)
+
+### Features
+- Add bilingual UI i18n and locale switching (4c848df)
+
+### Bug Fixes
+- Expand ~ in session cwd before spawning CLI (f043848)
+
+### Other Changes
+- Replace node-pty with @homebridge/node-pty-prebuilt-multiarch for better cross-platform prebuilt support (6573fff)
+
 ## v0.5.1 (2026-04-09)
 
 ### Features
