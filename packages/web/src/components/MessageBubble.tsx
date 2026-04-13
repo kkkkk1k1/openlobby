@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { LobbyMessageData } from '../stores/lobby-store';
 import { wsCompactSession } from '../hooks/useWebSocket';
+import { useI18nContext } from '../contexts/I18nContext';
 import ChoiceCard, { type ChoiceOption } from './ChoiceCard';
 
 interface Props {
@@ -11,16 +12,18 @@ interface Props {
 }
 
 class MessageErrorBoundary extends Component<
-  { children: ReactNode },
+  { children: ReactNode; fallbackText: string },
   { hasError: boolean }
 > {
   state = { hasError: false };
+
   static getDerivedStateFromError() {
     return { hasError: true };
   }
+
   render() {
     if (this.state.hasError) {
-      return <div className="text-danger text-xs italic">[Render error]</div>;
+      return <div className="text-danger text-xs italic">{this.props.fallbackText}</div>;
     }
     return this.props.children;
   }
@@ -33,6 +36,8 @@ function formatTime(ts: number): string {
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useI18nContext();
+
   return (
     <button
       onClick={() => {
@@ -42,7 +47,7 @@ function CopyButton({ text }: { text: string }) {
       }}
       className="text-[10px] text-on-surface-muted hover:text-on-surface px-1.5 py-0.5 rounded hover:bg-surface-elevated transition-colors"
     >
-      {copied ? 'Copied!' : 'Copy'}
+      {copied ? t('common.copied') : t('common.copy')}
     </button>
   );
 }
@@ -64,6 +69,7 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
       </div>
     );
   }
+
   return (
     <code className="bg-[var(--color-code-inline-bg)] px-1 py-0.5 rounded text-sm">{children}</code>
   );
@@ -150,7 +156,8 @@ function AssistantContent({ content, onChoiceSelect }: { content: string; onChoi
 }
 
 function ToolUseContent({ msg }: { msg: LobbyMessageData }) {
-  const toolName = msg.meta?.toolName ?? 'Unknown';
+  const { t } = useI18nContext();
+  const toolName = msg.meta?.toolName ?? t('messageBubble.unknownTool');
   const raw = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2);
   const summary = raw.length > 100 ? raw.slice(0, 100) + '...' : raw;
   const [expanded, setExpanded] = useState(false);
@@ -167,7 +174,7 @@ function ToolUseContent({ msg }: { msg: LobbyMessageData }) {
             onClick={() => setExpanded(!expanded)}
             className="text-[10px] text-on-surface-muted hover:text-on-surface mt-0.5"
           >
-            {expanded ? '- Collapse' : '+ Expand'}
+            {expanded ? t('messageBubble.collapse') : t('messageBubble.expand')}
           </button>
           {expanded && (
             <pre className="text-on-surface-secondary mt-1 overflow-auto max-h-60 p-2 bg-[var(--color-code-bg)] rounded">
@@ -181,6 +188,7 @@ function ToolUseContent({ msg }: { msg: LobbyMessageData }) {
 }
 
 function ToolResultContent({ msg }: { msg: LobbyMessageData }) {
+  const { t } = useI18nContext();
   const raw = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2);
   const isError = msg.meta?.isError;
   const lines = raw.split('\n');
@@ -190,7 +198,7 @@ function ToolResultContent({ msg }: { msg: LobbyMessageData }) {
 
   return (
     <div className="font-mono text-xs">
-      {isError === true && <span className="text-danger text-[10px]">Error </span>}
+      {isError === true && <span className="text-danger text-[10px]">{t('messageBubble.error')} </span>}
       <pre className={`text-on-surface-secondary overflow-auto ${!expanded && isLong ? 'max-h-24' : 'max-h-60'} whitespace-pre-wrap`}>
         {expanded ? raw : preview}
       </pre>
@@ -199,7 +207,9 @@ function ToolResultContent({ msg }: { msg: LobbyMessageData }) {
           onClick={() => setExpanded(!expanded)}
           className="text-[10px] text-on-surface-muted hover:text-on-surface mt-0.5"
         >
-          {expanded ? '- Show less' : `+ Show all (${lines.length} lines)`}
+          {expanded
+            ? t('messageBubble.showLess')
+            : t('messageBubble.showAll', { count: lines.length })}
         </button>
       )}
     </div>
@@ -207,6 +217,7 @@ function ToolResultContent({ msg }: { msg: LobbyMessageData }) {
 }
 
 function ResultContent({ msg }: { msg: LobbyMessageData }) {
+  const { t } = useI18nContext();
   const meta = msg.meta ?? {};
   const content = typeof msg.content === 'string' ? msg.content : '';
   const tokenUsage = meta.tokenUsage as { input: number; output: number } | undefined;
@@ -216,7 +227,9 @@ function ResultContent({ msg }: { msg: LobbyMessageData }) {
     <div className="flex items-center gap-3 text-xs">
       {content && <span>{content}</span>}
       {tokenUsage != null && (
-        <span className="text-on-surface-secondary">{tokenUsage.input + tokenUsage.output} tokens</span>
+        <span className="text-on-surface-secondary">
+          {t('messageBubble.tokens', { count: tokenUsage.input + tokenUsage.output })}
+        </span>
       )}
       {costUsd != null && (
         <span className="text-on-surface-secondary">${costUsd.toFixed(4)}</span>
@@ -299,18 +312,19 @@ function UserContent({ content }: { content: string }) {
 }
 
 function CompactContent({ msg }: { msg: LobbyMessageData }) {
-  const content = typeof msg.content === 'object' ? msg.content as Record<string, unknown> : {};
+  const { t } = useI18nContext();
+  const content = typeof msg.content === 'object' ? (msg.content as Record<string, unknown>) : {};
 
   if (content.compactSuggestion) {
     const tokensK = Math.round((content.currentTokens as number) / 1000);
     return (
       <div className="flex items-center gap-2 text-xs text-warning">
-        <span>Context approaching limit ({tokensK}K tokens).</span>
+        <span>{t('messageBubble.contextLimit', { count: tokensK })}</span>
         <button
           onClick={() => wsCompactSession(msg.sessionId)}
           className="px-2 py-0.5 bg-warning-surface hover:bg-warning-surface/80 text-warning rounded text-xs transition-colors"
         >
-          Compact Now
+          {t('messageBubble.compactNow')}
         </button>
       </div>
     );
@@ -319,7 +333,7 @@ function CompactContent({ msg }: { msg: LobbyMessageData }) {
   if (content.compacting) {
     return (
       <div className="flex items-center gap-2 text-xs text-primary">
-        <span className="animate-pulse">Compacting conversation...</span>
+        <span className="animate-pulse">{t('messageBubble.compacting')}</span>
       </div>
     );
   }
@@ -329,7 +343,11 @@ function CompactContent({ msg }: { msg: LobbyMessageData }) {
     const preK = preTokens ? Math.round(preTokens / 1000) : null;
     return (
       <div className="flex items-center gap-2 text-xs text-success">
-        <span>Conversation compacted{preK ? ` (was ${preK}K tokens)` : ''}</span>
+        <span>
+          {preK
+            ? t('messageBubble.compactedWas', { count: preK })
+            : t('messageBubble.compacted')}
+        </span>
       </div>
     );
   }
@@ -338,6 +356,7 @@ function CompactContent({ msg }: { msg: LobbyMessageData }) {
 }
 
 export default function MessageBubble({ msg, onChoiceSelect }: Props) {
+  const { t } = useI18nContext();
   const content =
     typeof msg.content === 'string'
       ? msg.content
@@ -381,7 +400,7 @@ export default function MessageBubble({ msg, onChoiceSelect }: Props) {
 
   if (isTool) {
     return (
-      <MessageErrorBoundary>
+      <MessageErrorBoundary fallbackText={t('messageBubble.renderError')}>
         <div className={`ml-2 pl-3 border-l-2 ${
           msg.type === 'tool_use' ? 'border-warning/40' : 'border-success/40'
         } py-1 mb-1`}>
@@ -396,7 +415,7 @@ export default function MessageBubble({ msg, onChoiceSelect }: Props) {
   }
 
   return (
-    <MessageErrorBoundary>
+    <MessageErrorBoundary fallbackText={t('messageBubble.renderError')}>
       <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-2`}>
         <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
           isUser

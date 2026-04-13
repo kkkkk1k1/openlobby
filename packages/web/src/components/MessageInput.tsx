@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useLobbyStore } from '../stores/lobby-store';
 import { wsConfigureSession, wsRequestCompletions, wsInterruptSession } from '../hooks/useWebSocket';
+import { useI18nContext } from '../contexts/I18nContext';
 import SlashCommandMenu, {
   filterCommands,
+  getFallbackCommands,
   getMergedCommands,
   type SlashCommand,
 } from './SlashCommandMenu';
@@ -52,6 +54,7 @@ export default function MessageInput({ onSend, disabled, placeholder }: Props) {
   const prevSlashQueryRef = useRef<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t } = useI18nContext();
 
   const activeSessionId = useLobbyStore((s) => s.activeSessionId);
   const activeSession = useLobbyStore((s) =>
@@ -89,7 +92,7 @@ export default function MessageInput({ onSend, disabled, placeholder }: Props) {
 
   const showSlashMenu = slashQuery !== null && !slashMenuDismissed;
   const slashCommands = showSlashMenu
-    ? filterCommands(slashQuery!, getMergedCommands(sessionCommands))
+    ? filterCommands(slashQuery!, getMergedCommands(sessionCommands, getFallbackCommands(t)))
     : [];
 
   useEffect(() => {
@@ -124,7 +127,7 @@ export default function MessageInput({ onSend, disabled, placeholder }: Props) {
     const newAttachments: Attachment[] = [];
     for (const file of files) {
       if (file.size > 10 * 1024 * 1024) {
-        alert(`File "${file.name}" is too large (max 10MB)`);
+        alert(t('messageInput.fileTooLarge', { name: file.name }));
         continue;
       }
       const attachment: Attachment = { file };
@@ -173,7 +176,7 @@ export default function MessageInput({ onSend, disabled, placeholder }: Props) {
         const fileRefs = uploadedPaths.map((p) => `[Attached: ${p}]`).join('\n');
         messageContent = messageContent ? `${messageContent}\n\n${fileRefs}` : fileRefs;
       } catch (err) {
-        alert(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
+        alert(t('messageInput.uploadFailed', { error: err instanceof Error ? err.message : String(err) }));
         setUploading(false);
         return;
       }
@@ -258,7 +261,7 @@ export default function MessageInput({ onSend, disabled, placeholder }: Props) {
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled}
           className="p-2.5 text-on-surface-muted hover:text-on-surface disabled:opacity-30 transition-colors"
-          title="Attach file"
+          title={t('messageInput.attachFile')}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
@@ -280,10 +283,10 @@ export default function MessageInput({ onSend, disabled, placeholder }: Props) {
           onKeyDown={handleKeyDown}
           placeholder={
             isDragOver
-              ? 'Drop files here...'
+              ? t('messageInput.dropFilesHere')
               : isPlanMode
-                ? 'Plan mode: describe what you want to build...'
-                : placeholder ?? 'Message... (/ for commands)'
+                ? t('messageInput.planModePlaceholder')
+                : placeholder ?? t('messageInput.messagePlaceholder')
           }
           disabled={disabled || uploading}
           rows={1}
@@ -298,7 +301,7 @@ export default function MessageInput({ onSend, disabled, placeholder }: Props) {
             onClick={() => activeSessionId && wsInterruptSession(activeSessionId)}
             className="px-4 py-2.5 rounded-xl bg-danger hover:bg-danger-hover text-white font-medium text-sm transition-colors"
           >
-            ⏹ Stop
+            {t('common.stop')}
           </button>
         ) : (
           <button
@@ -306,14 +309,14 @@ export default function MessageInput({ onSend, disabled, placeholder }: Props) {
             disabled={disabled || uploading || (!value.trim() && attachments.length === 0)}
             className="px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-hover disabled:opacity-30 disabled:hover:bg-primary text-primary-on font-medium text-sm transition-colors"
           >
-            {uploading ? '...' : 'Send'}
+            {uploading ? '...' : t('common.send')}
           </button>
         )}
       </div>
 
       {isDragOver && (
         <div className="text-center text-primary text-xs mt-1">
-          Drop files to attach
+          {t('messageInput.dropToAttach')}
         </div>
       )}
     </div>

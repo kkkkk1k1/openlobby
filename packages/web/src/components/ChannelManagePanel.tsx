@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { useLobbyStore } from '../stores/lobby-store';
+import { useI18nContext } from '../contexts/I18nContext';
 import {
   wsListProviders,
   wsAddProvider,
@@ -22,6 +23,7 @@ export default function ChannelManagePanel({ onClose }: Props) {
 
   const providers = useLobbyStore((s) => s.channelProviders);
   const bindings = useLobbyStore((s) => s.channelBindings);
+  const { t } = useI18nContext();
 
   useEffect(() => {
     wsListProviders();
@@ -35,13 +37,12 @@ export default function ChannelManagePanel({ onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-on-surface">IM Channels</h2>
+          <h2 className="text-xl font-bold text-on-surface">{t('channelManage.title')}</h2>
           <button onClick={onClose} className="text-on-surface-secondary hover:text-on-surface text-xl">
             &times;
           </button>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-4">
           <button
             onClick={() => setTab('providers')}
@@ -51,7 +52,7 @@ export default function ChannelManagePanel({ onClose }: Props) {
                 : 'bg-surface-elevated text-on-surface-secondary hover:text-on-surface'
             }`}
           >
-            Providers ({providers.length})
+            {t('channelManage.providersTab')} ({providers.length})
           </button>
           <button
             onClick={() => setTab('bindings')}
@@ -61,7 +62,7 @@ export default function ChannelManagePanel({ onClose }: Props) {
                 : 'bg-surface-elevated text-on-surface-secondary hover:text-on-surface'
             }`}
           >
-            Bindings ({bindings.length})
+            {t('channelManage.bindingsTab')} ({bindings.length})
           </button>
         </div>
 
@@ -70,7 +71,7 @@ export default function ChannelManagePanel({ onClose }: Props) {
             <>
               {providers.length === 0 && !showAddForm && (
                 <p className="text-on-surface-muted text-sm text-center py-8">
-                  No channel providers configured.
+                  {t('channelManage.noProviders')}
                 </p>
               )}
 
@@ -97,13 +98,13 @@ export default function ChannelManagePanel({ onClose }: Props) {
                           : 'bg-surface-elevated text-on-surface-secondary hover:bg-[var(--color-sidebar-hover)] border border-outline'
                       }`}
                     >
-                      {p.enabled ? 'ON' : 'OFF'}
+                      {p.enabled ? t('channelManage.providerOn') : t('channelManage.providerOff')}
                     </button>
                     <button
                       onClick={() => wsRemoveProvider(p.id)}
                       className="text-danger hover:text-danger-hover text-xs"
                     >
-                      Delete
+                      {t('common.delete')}
                     </button>
                   </div>
                 </div>
@@ -116,7 +117,7 @@ export default function ChannelManagePanel({ onClose }: Props) {
                   onClick={() => setShowAddForm(true)}
                   className="w-full py-2 border border-dashed border-outline rounded-lg text-on-surface-secondary hover:text-on-surface hover:border-on-surface-muted text-sm"
                 >
-                  + Add Provider
+                  + {t('channelManage.addProvider')}
                 </button>
               )}
             </>
@@ -126,7 +127,7 @@ export default function ChannelManagePanel({ onClose }: Props) {
             <>
               {bindings.length === 0 && (
                 <p className="text-on-surface-muted text-sm text-center py-8">
-                  No active channel bindings.
+                  {t('channelManage.noBindings')}
                 </p>
               )}
 
@@ -141,14 +142,14 @@ export default function ChannelManagePanel({ onClose }: Props) {
                       <span className="text-on-surface-muted text-xs ml-2">({b.channelName})</span>
                     </div>
                     <div className="text-on-surface-muted text-xs mt-0.5">
-                      Target: {b.target === 'lobby-manager' ? 'LM' : b.activeSessionId?.slice(0, 8) ?? b.target.slice(0, 8)}
+                      {t('channelManage.target')}: {b.target === 'lobby-manager' ? 'LM' : b.activeSessionId?.slice(0, 8) ?? b.target.slice(0, 8)}
                     </div>
                   </div>
                   <button
                     onClick={() => wsUnbind(b.identityKey)}
                     className="text-on-surface-secondary hover:text-danger text-xs"
                   >
-                    Unbind
+                    {t('channelManage.unbind')}
                   </button>
                 </div>
               ))}
@@ -160,24 +161,26 @@ export default function ChannelManagePanel({ onClose }: Props) {
   );
 }
 
-const CHANNEL_FIELDS: Record<string, Array<{ key: string; label: string; required: boolean; type: string; placeholder?: string }>> = {
-  wecom: [
-    { key: 'botId', label: 'Bot ID', required: true, type: 'text', placeholder: 'aibxxxxxxxx' },
-    { key: 'secret', label: 'Secret', required: true, type: 'password' },
-  ],
-  telegram: [
-    { key: 'botToken', label: 'Bot Token', required: true, type: 'password', placeholder: '123456:ABC-DEF...' },
-    { key: 'webhookUrl', label: 'Webhook URL (optional)', required: false, type: 'text', placeholder: 'https://example.com/webhook/telegram/...' },
-    { key: 'webhookSecret', label: 'Webhook Secret (optional)', required: false, type: 'password' },
-  ],
-};
-
-const CHANNEL_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'wecom', label: 'WeCom (Enterprise WeChat)' },
-  { value: 'telegram', label: 'Telegram' },
-];
-
 function AddProviderForm({ onDone }: { onDone: () => void }) {
+  const { t } = useI18nContext();
+
+  const channelFields: Record<string, Array<{ key: string; label: string; required: boolean; type: string; placeholder?: string }>> = {
+    wecom: [
+      { key: 'botId', label: t('channelManage.fieldBotId'), required: true, type: 'text', placeholder: 'aibxxxxxxxx' },
+      { key: 'secret', label: t('channelManage.fieldSecret'), required: true, type: 'password' },
+    ],
+    telegram: [
+      { key: 'botToken', label: t('channelManage.fieldBotToken'), required: true, type: 'password', placeholder: '123456:ABC-DEF...' },
+      { key: 'webhookUrl', label: t('channelManage.fieldWebhookUrl'), required: false, type: 'text', placeholder: 'https://example.com/webhook/telegram/...' },
+      { key: 'webhookSecret', label: t('channelManage.fieldWebhookSecret'), required: false, type: 'password' },
+    ],
+  };
+
+  const channelOptions: Array<{ value: string; label: string }> = [
+    { value: 'wecom', label: t('channelManage.wecomOption') },
+    { value: 'telegram', label: t('channelManage.telegramOption') },
+  ];
+
   const [channelName, setChannelName] = useState('wecom');
   const [accountId, setAccountId] = useState('');
   const [credentials, setCredentials] = useState<Record<string, string>>({});
@@ -187,7 +190,7 @@ function AddProviderForm({ onDone }: { onDone: () => void }) {
   const qrStatus = useLobbyStore((s) => s.wecomQrStatus);
   const setQrStatus = useLobbyStore((s) => s.setWecomQrStatus);
 
-  const fields = CHANNEL_FIELDS[channelName] ?? [];
+  const fields = channelFields[channelName] ?? [];
   const isWecom = channelName === 'wecom';
 
   useEffect(() => {
@@ -267,17 +270,17 @@ function AddProviderForm({ onDone }: { onDone: () => void }) {
     return (
       <div className="bg-surface-elevated rounded-lg p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-on-surface font-medium">Add WeCom Bot (Scan)</span>
-          <button onClick={onDone} className="text-on-surface-secondary hover:text-on-surface text-xs">Cancel</button>
+          <span className="text-sm text-on-surface font-medium">{t('channelManage.addWecomScan')}</span>
+          <button onClick={onDone} className="text-on-surface-secondary hover:text-on-surface text-xs">{t('common.cancel')}</button>
         </div>
 
         <div>
-          <label className="block text-xs text-on-surface-secondary mb-1">Account ID</label>
+          <label className="block text-xs text-on-surface-secondary mb-1">{t('common.accountId')}</label>
           <input
             type="text"
             value={accountId}
             onChange={(e) => setAccountId(e.target.value)}
-            placeholder="e.g. my-bot-1"
+            placeholder={t('channelManage.accountIdPlaceholder')}
             className="w-full bg-surface border border-outline rounded px-3 py-1.5 text-sm text-on-surface"
           />
         </div>
@@ -293,41 +296,41 @@ function AddProviderForm({ onDone }: { onDone: () => void }) {
                   : 'bg-surface-elevated text-on-surface-muted cursor-not-allowed'
               }`}
             >
-              Generate QR Code
+              {t('channelManage.generateQr')}
             </button>
           )}
 
           {qrStatus?.status === 'generating' && (
-            <p className="text-on-surface-secondary text-sm">Generating QR code...</p>
+            <p className="text-on-surface-secondary text-sm">{t('channelManage.generatingQr')}</p>
           )}
 
           {qrStatus?.status === 'waiting' && qrDataUrl && (
             <>
-              <img src={qrDataUrl} alt="WeCom QR Code" className="w-48 h-48 rounded-lg" />
-              <p className="text-on-surface-secondary text-xs">Scan with WeCom app</p>
+              <img src={qrDataUrl} alt={t('channelManage.wecomQrAlt')} className="w-48 h-48 rounded-lg" />
+              <p className="text-on-surface-secondary text-xs">{t('channelManage.scanWithWecom')}</p>
             </>
           )}
 
           {qrStatus?.status === 'expired' && (
             <div className="text-center space-y-2">
-              <p className="text-warning text-sm">QR code expired</p>
+              <p className="text-warning text-sm">{t('channelManage.qrExpired')}</p>
               <button onClick={handleStartQr} className="px-3 py-1.5 bg-primary text-primary-on rounded text-sm hover:bg-primary-hover">
-                Regenerate
+                {t('channelManage.regenerate')}
               </button>
             </div>
           )}
 
           {qrStatus?.status === 'error' && (
             <div className="text-center space-y-2">
-              <p className="text-danger text-sm">{qrStatus.error ?? 'Unknown error'}</p>
+              <p className="text-danger text-sm">{qrStatus.error ?? t('channelManage.unknownError')}</p>
               <button onClick={handleStartQr} className="px-3 py-1.5 bg-primary text-primary-on rounded text-sm hover:bg-primary-hover">
-                Retry
+                {t('common.retry')}
               </button>
             </div>
           )}
 
           {qrStatus?.status === 'success' && (
-            <p className="text-success text-sm">Scan successful! Adding provider...</p>
+            <p className="text-success text-sm">{t('channelManage.scanSuccess')}</p>
           )}
         </div>
 
@@ -336,7 +339,7 @@ function AddProviderForm({ onDone }: { onDone: () => void }) {
             onClick={() => { setManualMode(true); wsWecomQrCancel(); setQrStatus(null); }}
             className="text-xs text-on-surface-muted hover:text-on-surface underline"
           >
-            Manual input (botId + secret)
+            {t('channelManage.manualInput')}
           </button>
         </div>
       </div>
@@ -346,25 +349,25 @@ function AddProviderForm({ onDone }: { onDone: () => void }) {
   return (
     <form onSubmit={handleManualSubmit} className="bg-surface-elevated rounded-lg p-4 space-y-3">
       <div>
-        <label className="block text-xs text-on-surface-secondary mb-1">Channel Type</label>
+        <label className="block text-xs text-on-surface-secondary mb-1">{t('channelManage.channelType')}</label>
         <select
           value={channelName}
           onChange={(e) => handleChannelChange(e.target.value)}
           className="w-full bg-surface border border-outline rounded px-3 py-1.5 text-sm text-on-surface"
         >
-          {CHANNEL_OPTIONS.map((opt) => (
+          {channelOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
       </div>
 
       <div>
-        <label className="block text-xs text-on-surface-secondary mb-1">Account ID</label>
+        <label className="block text-xs text-on-surface-secondary mb-1">{t('common.accountId')}</label>
         <input
           type="text"
           value={accountId}
           onChange={(e) => setAccountId(e.target.value)}
-          placeholder="e.g. my-bot-1"
+          placeholder={t('channelManage.accountIdPlaceholder')}
           className="w-full bg-surface border border-outline rounded px-3 py-1.5 text-sm text-on-surface"
         />
       </div>
@@ -389,7 +392,7 @@ function AddProviderForm({ onDone }: { onDone: () => void }) {
             onClick={() => { setManualMode(false); }}
             className="text-xs text-on-surface-muted hover:text-on-surface underline mr-auto"
           >
-            Back to QR scan
+            {t('channelManage.backToQr')}
           </button>
         )}
         <button
@@ -397,7 +400,7 @@ function AddProviderForm({ onDone }: { onDone: () => void }) {
           onClick={onDone}
           className="px-3 py-1.5 text-sm text-on-surface-secondary hover:text-on-surface"
         >
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           type="submit"
@@ -408,7 +411,7 @@ function AddProviderForm({ onDone }: { onDone: () => void }) {
               : 'bg-surface-elevated text-on-surface-muted cursor-not-allowed'
           }`}
         >
-          Add
+          {t('common.add')}
         </button>
       </div>
     </form>

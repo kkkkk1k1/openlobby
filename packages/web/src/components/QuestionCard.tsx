@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import type { ControlQuestionData } from '../stores/lobby-store';
+import { useI18nContext } from '../contexts/I18nContext';
 
 interface Props {
   requestId: string;
@@ -11,6 +12,7 @@ export default function QuestionCard({ requestId, questions, onSubmit }: Props) 
   const [answers, setAnswers] = useState<Record<number, string[]>>({});
   const [otherTexts, setOtherTexts] = useState<Record<number, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const { t } = useI18nContext();
 
   const toggleOption = useCallback((qIdx: number, label: string, multiSelect: boolean) => {
     setAnswers((prev) => {
@@ -75,13 +77,13 @@ export default function QuestionCard({ requestId, questions, onSubmit }: Props) 
   return (
     <div className="rounded-lg px-4 py-3 mb-2 bg-info-surface border border-info/40">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs text-info font-semibold">QUESTION</span>
+        <span className="text-xs text-info font-semibold">{t('questionCard.title')}</span>
         {!submitted && (
           <button
             onClick={handleDeny}
             className="px-2.5 py-1 rounded bg-danger/60 hover:bg-danger text-white text-xs font-medium transition-colors"
           >
-            Dismiss
+            {t('common.dismiss')}
           </button>
         )}
       </div>
@@ -95,7 +97,7 @@ export default function QuestionCard({ requestId, questions, onSubmit }: Props) 
                 {q.header}
               </span>
               {q.multiSelect && (
-                <span className="text-xs text-on-surface-muted">(multi-select)</span>
+                <span className="text-xs text-on-surface-muted">{t('questionCard.multiSelect')}</span>
               )}
             </div>
             <div className="text-sm text-on-surface mb-2">{q.question}</div>
@@ -139,7 +141,6 @@ export default function QuestionCard({ requestId, questions, onSubmit }: Props) 
                 );
               })}
 
-              {/* "Other" free-text option */}
               <div
                 className={`rounded-md px-3 py-2 border transition-colors ${
                   submitted
@@ -172,7 +173,7 @@ export default function QuestionCard({ requestId, questions, onSubmit }: Props) 
                   <input
                     type="text"
                     disabled={submitted}
-                    placeholder="Other..."
+                    placeholder={t('questionCard.otherPlaceholder')}
                     value={otherTexts[qIdx] ?? ''}
                     onChange={(e) => setOtherText(qIdx, e.target.value)}
                     className="flex-1 bg-transparent text-sm text-on-surface-secondary placeholder-on-surface-muted outline-none"
@@ -195,14 +196,14 @@ export default function QuestionCard({ requestId, questions, onSubmit }: Props) 
                 : 'bg-surface-elevated text-on-surface-muted cursor-not-allowed'
             }`}
           >
-            Confirm
+            {t('common.confirm')}
           </button>
         </div>
       )}
 
       {submitted && (
         <div className="text-xs text-on-surface-muted mt-2 text-right italic">
-          Answers submitted
+          {t('questionCard.answersSubmitted')}
         </div>
       )}
     </div>

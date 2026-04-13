@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ToolCallAggregator } from '../stores/lobby-store';
+import { useI18nContext } from '../contexts/I18nContext';
 
 interface Props {
   aggregator?: ToolCallAggregator;
@@ -7,6 +8,8 @@ interface Props {
 }
 
 export default function ToolSummaryBubble({ aggregator, summaryText }: Props) {
+  const { t } = useI18nContext();
+
   if (summaryText) {
     return (
       <div className="flex justify-start px-4 py-1">
@@ -21,7 +24,7 @@ export default function ToolSummaryBubble({ aggregator, summaryText }: Props) {
 
   const statsChain = Object.entries(aggregator.toolCounts)
     .map(([name, count]) => `${name}(${count})`)
-    .join(' \u2192 ');
+    .join(' -> ');
 
   const lastPreview = aggregator.lastToolContent
     ? aggregator.lastToolContent.slice(0, 200) + (aggregator.lastToolContent.length > 200 ? '...' : '')
@@ -31,13 +34,13 @@ export default function ToolSummaryBubble({ aggregator, summaryText }: Props) {
     <div className="flex justify-start px-4 py-1">
       <div className="bg-surface-elevated/50 border border-outline-subtle/50 rounded-lg px-3 py-2 text-xs max-w-lg animate-pulse">
         <div className="text-on-surface-secondary">
-          {'\u{1F527}'} 正在处理... {statsChain}
+          {'\u{1F527}'} {t('toolSummary.processing', { stats: statsChain })}
         </div>
         {lastPreview && (
           <>
             <div className="border-t border-outline-subtle/50 my-1" />
             <div className="text-on-surface-muted font-mono whitespace-pre-wrap break-all">
-              {'\u{1F4C4}'} {aggregator.lastToolName}: {lastPreview}
+              {'\u{1F4C4}'} {t('toolSummary.lastPreview', { tool: aggregator.lastToolName, preview: lastPreview })}
             </div>
           </>
         )}

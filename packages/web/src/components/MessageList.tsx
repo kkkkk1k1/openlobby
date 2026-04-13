@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useLobbyStore } from '../stores/lobby-store';
+import { useI18nContext } from '../contexts/I18nContext';
 import MessageBubble from './MessageBubble';
 import ControlCard from './ControlCard';
 import QuestionCard from './QuestionCard';
@@ -21,6 +22,7 @@ export default function MessageList({ sessionId, onControlRespond, onChoiceSelec
   const isTyping = useLobbyStore((s) => s.typingBySession[sessionId] ?? false);
   const toolAggregator = useLobbyStore((s) => s.toolAggregatorBySession[sessionId]);
   const sessionData = useLobbyStore((s) => s.sessions[sessionId]);
+  const { t } = useI18nContext();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -76,7 +78,7 @@ export default function MessageList({ sessionId, onControlRespond, onChoiceSelec
     <div className="flex-1 overflow-y-auto p-4 relative" ref={containerRef} onScroll={handleScroll}>
       {messages.length === 0 && pendingControls.length === 0 && !isTyping && (
         <div className="text-on-surface-muted text-center mt-20 text-sm">
-          Send a message to start the conversation.
+          {t('messageList.empty')}
         </div>
       )}
 
@@ -122,7 +124,7 @@ export default function MessageList({ sessionId, onControlRespond, onChoiceSelec
           onClick={scrollToBottom}
           className="sticky bottom-2 left-1/2 -translate-x-1/2 bg-primary hover:bg-primary-hover text-primary-on text-xs px-3 py-1.5 rounded-full shadow-lg transition-colors"
         >
-          New messages
+          {t('messageList.newMessages')}
         </button>
       )}
     </div>

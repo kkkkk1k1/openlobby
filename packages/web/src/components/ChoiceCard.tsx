@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useI18nContext } from '../contexts/I18nContext';
 
 export interface ChoiceOption {
   label: string;
@@ -14,6 +15,7 @@ interface Props {
 export default function ChoiceCard({ question, options, onSelect }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const { t } = useI18nContext();
 
   const handleConfirm = () => {
     if (selected) {
@@ -71,13 +73,13 @@ export default function ChoiceCard({ question, options, onSelect }: Props) {
                 : 'bg-surface-elevated text-on-surface-muted cursor-not-allowed'
             }`}
           >
-            Select & Continue
+            {t('choiceCard.selectContinue')}
           </button>
         </div>
       )}
-      {confirmed && (
+      {confirmed && selected && (
         <div className="text-xs text-on-surface-muted mt-2 text-right italic">
-          Selected: {selected}
+          {t('choiceCard.selected', { value: selected })}
         </div>
       )}
     </div>
