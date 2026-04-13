@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.5.3 (2026-04-13)
+
+### Bug Fixes
+- Set IS_SANDBOX=1 to allow bypassPermissions under root for Claude Code (651d67a)
+
 ## v0.5.2 (2026-04-13)
 
 ### Features
