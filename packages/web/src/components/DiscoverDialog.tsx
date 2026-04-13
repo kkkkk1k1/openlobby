@@ -27,11 +27,7 @@ export default function DiscoverDialog({ onClose }: Props) {
   const [adapterFilter, setAdapterFilter] = useState<string>('all');
 
   const managedIds = new Set(Object.keys(managedSessions));
-
-  // Get unique adapter names for filter tabs
   const adapterNames = [...new Set(discoveredSessions.map((s) => s.adapterName))];
-
-  // Apply adapter filter
   const filteredSessions = adapterFilter === 'all'
     ? discoveredSessions
     : discoveredSessions.filter((s) => s.adapterName === adapterFilter);
@@ -49,14 +45,12 @@ export default function DiscoverDialog({ onClose }: Props) {
     const importable = filteredSessions.filter((s) => !managedIds.has(s.id));
     const allSelected = importable.every((s) => selected.has(s.id));
     if (allSelected) {
-      // Deselect all filtered
       setSelected((prev) => {
         const next = new Set(prev);
         for (const s of importable) next.delete(s.id);
         return next;
       });
     } else {
-      // Select all filtered
       setSelected((prev) => {
         const next = new Set(prev);
         for (const s of importable) next.add(s.id);
@@ -67,8 +61,6 @@ export default function DiscoverDialog({ onClose }: Props) {
 
   const handleImport = () => {
     setImporting(true);
-    // Import oldest-first so the most recent session gets the highest
-    // Date.now() and naturally sorts to the top of the session list.
     const toImport = discoveredSessions
       .filter((s) => selected.has(s.id))
       .sort((a, b) => a.lastActiveAt - b.lastActiveAt);
@@ -88,15 +80,15 @@ export default function DiscoverDialog({ onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-xl w-[560px] max-h-[70vh] flex flex-col border border-gray-600 shadow-2xl">
+    <div className="fixed inset-0 bg-[var(--color-surface-overlay)] flex items-center justify-center z-50">
+      <div className="bg-surface-elevated rounded-xl w-[560px] max-h-[70vh] flex flex-col border border-outline shadow-2xl">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-outline flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-100">
+            <h2 className="text-lg font-semibold text-on-surface">
               Discover CLI Sessions
             </h2>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-xs text-on-surface-secondary mt-0.5">
               Found {discoveredSessions.length} session{discoveredSessions.length !== 1 ? 's' : ''} not yet managed by OpenLobby
             </p>
             {adapterNames.length > 1 && (
@@ -105,8 +97,8 @@ export default function DiscoverDialog({ onClose }: Props) {
                   onClick={() => setAdapterFilter('all')}
                   className={`px-2 py-0.5 rounded text-xs ${
                     adapterFilter === 'all'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-700 text-gray-400 hover:text-gray-200'
+                      ? 'bg-primary text-primary-on'
+                      : 'bg-surface-elevated text-on-surface-muted hover:text-on-surface'
                   }`}
                 >
                   All ({discoveredSessions.length})
@@ -120,8 +112,8 @@ export default function DiscoverDialog({ onClose }: Props) {
                       onClick={() => setAdapterFilter(name)}
                       className={`px-2 py-0.5 rounded text-xs ${
                         adapterFilter === name
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-700 text-gray-400 hover:text-gray-200'
+                          ? 'bg-primary text-primary-on'
+                          : 'bg-surface-elevated text-on-surface-muted hover:text-on-surface'
                       }`}
                     >
                       {label} ({count})
@@ -133,7 +125,7 @@ export default function DiscoverDialog({ onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-200 text-xl leading-none"
+            className="text-on-surface-secondary hover:text-on-surface text-xl leading-none"
           >
             &times;
           </button>
@@ -142,13 +134,12 @@ export default function DiscoverDialog({ onClose }: Props) {
         {/* Session list */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           {filteredSessions.length === 0 ? (
-            <div className="text-gray-500 text-sm text-center py-8">
+            <div className="text-on-surface-muted text-sm text-center py-8">
               {discoveredSessions.length === 0 ? 'No new CLI sessions found.' : 'No sessions match the current filter.'}
             </div>
           ) : (
             <>
-              {/* Select all */}
-              <label className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-400 cursor-pointer hover:text-gray-300">
+              <label className="flex items-center gap-2 px-2 py-1.5 text-xs text-on-surface-secondary cursor-pointer hover:text-on-surface">
                 <input
                   type="checkbox"
                   checked={
@@ -156,7 +147,7 @@ export default function DiscoverDialog({ onClose }: Props) {
                     filteredSessions.filter((s) => !managedIds.has(s.id)).every((s) => selected.has(s.id))
                   }
                   onChange={toggleAll}
-                  className="rounded border-gray-500"
+                  className="rounded border-on-surface-muted"
                 />
                 Select all {adapterFilter !== 'all' ? `(${adapterFilter === 'claude-code' ? 'CC' : adapterFilter === 'codex-cli' ? 'CX' : adapterFilter === 'opencode' ? 'OC' : adapterFilter === 'gsd' ? 'GSD' : adapterFilter})` : ''}
               </label>
@@ -178,21 +169,21 @@ export default function DiscoverDialog({ onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-gray-700 flex items-center justify-between">
-          <span className="text-xs text-gray-400">
+        <div className="px-5 py-3 border-t border-outline flex items-center justify-between">
+          <span className="text-xs text-on-surface-secondary">
             {selected.size} selected
           </span>
           <div className="flex gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-1.5 text-sm rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300"
+              className="px-4 py-1.5 text-sm rounded-lg bg-surface-elevated hover:bg-[var(--color-sidebar-hover)] text-on-surface-secondary border border-outline"
             >
               Cancel
             </button>
             <button
               onClick={handleImport}
               disabled={selected.size === 0 || importing}
-              className="px-4 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium"
+              className="px-4 py-1.5 text-sm rounded-lg bg-primary hover:bg-primary-hover disabled:opacity-50 text-primary-on font-medium"
             >
               {importing ? 'Importing...' : `Import ${selected.size > 0 ? `(${selected.size})` : ''}`}
             </button>
@@ -222,8 +213,8 @@ function SessionRow({
         isManaged
           ? 'opacity-50 cursor-default'
           : isSelected
-            ? 'bg-blue-900/30 border border-blue-500/30'
-            : 'hover:bg-gray-700/50 border border-transparent'
+            ? 'bg-primary-surface border border-primary/30'
+            : 'hover:bg-[var(--color-sidebar-hover)] border border-transparent'
       }`}
     >
       <input
@@ -231,30 +222,30 @@ function SessionRow({
         checked={isSelected}
         disabled={isManaged}
         onChange={onToggle}
-        className="mt-1 rounded border-gray-500"
+        className="mt-1 rounded border-on-surface-muted"
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-100 truncate">
+          <span className="text-sm font-medium text-on-surface truncate">
             {session.displayName}
           </span>
-          <span className="text-[10px] text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded uppercase">
+          <span className="text-[10px] text-on-surface-muted bg-surface-elevated px-1.5 py-0.5 rounded uppercase">
             {adapterLabel}
           </span>
           {isManaged && (
-            <span className="text-[10px] text-green-400 bg-green-900/30 px-1.5 py-0.5 rounded">
+            <span className="text-[10px] text-success bg-success-surface px-1.5 py-0.5 rounded">
               Already imported
             </span>
           )}
         </div>
         <div className="flex items-center gap-3 mt-0.5">
-          <span className="text-xs text-gray-400 truncate">{session.cwd}</span>
-          <span className="text-xs text-gray-500 whitespace-nowrap">
+          <span className="text-xs text-on-surface-secondary truncate">{session.cwd}</span>
+          <span className="text-xs text-on-surface-muted whitespace-nowrap">
             {formatRelativeTime(session.lastActiveAt)}
           </span>
         </div>
         {session.lastMessage && (
-          <p className="text-xs text-gray-500 mt-0.5 truncate">
+          <p className="text-xs text-on-surface-muted mt-0.5 truncate">
             {session.lastMessage}
           </p>
         )}

@@ -29,7 +29,6 @@ export default function MessageList({ sessionId, onControlRespond, onChoiceSelec
   const prevMessageCount = useRef(0);
   const prevSessionId = useRef(sessionId);
 
-  // Detect manual scroll
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -39,7 +38,6 @@ export default function MessageList({ sessionId, onControlRespond, onChoiceSelec
     if (isNearBottom) setHasNewMessages(false);
   }, []);
 
-  // Reset state on session switch
   useEffect(() => {
     if (sessionId !== prevSessionId.current) {
       prevSessionId.current = sessionId;
@@ -49,11 +47,9 @@ export default function MessageList({ sessionId, onControlRespond, onChoiceSelec
     }
   }, [sessionId]);
 
-  // Auto-scroll or show "new messages" indicator
   useEffect(() => {
     const count = messages.length;
     if (count > prevMessageCount.current) {
-      // Session switch (history load): jump instantly; new messages: smooth scroll
       const isHistoryLoad = prevMessageCount.current === 0 && count > 1;
       if (userScrolledUp && !isHistoryLoad) {
         setHasNewMessages(true);
@@ -64,7 +60,6 @@ export default function MessageList({ sessionId, onControlRespond, onChoiceSelec
     prevMessageCount.current = count;
   }, [messages, userScrolledUp]);
 
-  // Auto-scroll for typing indicator and control cards
   useEffect(() => {
     if (!userScrolledUp) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -80,7 +75,7 @@ export default function MessageList({ sessionId, onControlRespond, onChoiceSelec
   return (
     <div className="flex-1 overflow-y-auto p-4 relative" ref={containerRef} onScroll={handleScroll}>
       {messages.length === 0 && pendingControls.length === 0 && !isTyping && (
-        <div className="text-gray-500 text-center mt-20 text-sm">
+        <div className="text-on-surface-muted text-center mt-20 text-sm">
           Send a message to start the conversation.
         </div>
       )}
@@ -122,11 +117,10 @@ export default function MessageList({ sessionId, onControlRespond, onChoiceSelec
 
       <div ref={bottomRef} />
 
-      {/* New messages indicator */}
       {hasNewMessages && (
         <button
           onClick={scrollToBottom}
-          className="sticky bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded-full shadow-lg transition-colors"
+          className="sticky bottom-2 left-1/2 -translate-x-1/2 bg-primary hover:bg-primary-hover text-primary-on text-xs px-3 py-1.5 rounded-full shadow-lg transition-colors"
         >
           New messages
         </button>

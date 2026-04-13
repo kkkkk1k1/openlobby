@@ -6,7 +6,6 @@ export interface SlashCommand {
   args?: string;
 }
 
-// Default commands available in all sessions (lobby-level + global)
 const FALLBACK_COMMANDS: SlashCommand[] = [
   { name: '/help', description: '显示帮助信息' },
   { name: '/ls', description: '列出所有会话' },
@@ -23,7 +22,6 @@ const FALLBACK_COMMANDS: SlashCommand[] = [
 ];
 
 interface Props {
-  /** Pre-filtered & sorted command list — the component just renders it. */
   filteredCommands: SlashCommand[];
   selectedIndex: number;
   onSelect: (cmd: SlashCommand) => void;
@@ -38,15 +36,12 @@ export function filterCommands(input: string, commands: SlashCommand[]): SlashCo
   for (const cmd of commands) {
     const name = cmd.name.toLowerCase();
     if (name === query || name === '/' + query) {
-      // Exact match (highest priority)
       scored.push({ cmd, score: -1 });
     } else {
       const nameIdx = name.indexOf(query);
       if (nameIdx !== -1) {
-        // Name partial match → 0..99, earlier position = lower score = higher priority
         scored.push({ cmd, score: nameIdx });
       } else if (cmd.description.toLowerCase().includes(query)) {
-        // Description-only match (lowest priority)
         scored.push({ cmd, score: 1000 });
       }
     }
@@ -56,11 +51,6 @@ export function filterCommands(input: string, commands: SlashCommand[]): SlashCo
   return scored.map((s) => s.cmd);
 }
 
-/**
- * Merge adapter commands with lobby-level fallback commands.
- * Adapter commands take precedence when names conflict.
- * Deduplicates by name — first occurrence wins.
- */
 export function getMergedCommands(adapterCommands?: SlashCommand[]): SlashCommand[] {
   const adapterCmds = adapterCommands && adapterCommands.length > 0 ? adapterCommands : [];
   const seen = new Set<string>();
@@ -77,14 +67,7 @@ export function getMergedCommands(adapterCommands?: SlashCommand[]): SlashComman
 export default function SlashCommandMenu({ filteredCommands, selectedIndex, onSelect, loading }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
 
-  // DEBUG: log what the component actually receives vs what DOM shows
-  console.log('[SlashMenu] props.filteredCommands:', filteredCommands.map(c => c.name));
-
   useEffect(() => {
-    // DEBUG: log actual DOM children count after render
-    const domChildren = listRef.current?.querySelectorAll('button');
-    console.log('[SlashMenu] DOM button count:', domChildren?.length, 'vs props count:', filteredCommands.length);
-
     const el = listRef.current?.children[selectedIndex + 1] as HTMLElement | undefined;
     el?.scrollIntoView({ block: 'nearest' });
   }, [selectedIndex, filteredCommands]);
@@ -94,14 +77,13 @@ export default function SlashCommandMenu({ filteredCommands, selectedIndex, onSe
   return (
     <div
       ref={listRef}
-      className="absolute bottom-full left-0 right-0 mb-1 bg-gray-900 border border-gray-700 rounded-lg shadow-xl max-h-72 overflow-y-auto z-50"
+      className="absolute bottom-full left-0 right-0 mb-1 bg-surface-secondary border border-outline rounded-lg shadow-xl max-h-72 overflow-y-auto z-50"
     >
-      {/* Header with count and loading indicator */}
-      <div className="sticky top-0 px-3 py-1 bg-gray-900/95 border-b border-gray-800 flex items-center justify-between text-[10px] text-gray-500">
+      <div className="sticky top-0 px-3 py-1 bg-surface-secondary/95 border-b border-outline-subtle flex items-center justify-between text-[10px] text-on-surface-muted">
         <span>{filteredCommands.length} commands</span>
         {loading && (
-          <span className="flex items-center gap-1 text-blue-400">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+          <span className="flex items-center gap-1 text-primary">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
             updating...
           </span>
         )}
@@ -111,22 +93,22 @@ export default function SlashCommandMenu({ filteredCommands, selectedIndex, onSe
           key={cmd.name}
           className={`w-full text-left px-3 py-1.5 flex items-center gap-2 text-sm transition-colors ${
             i === selectedIndex
-              ? 'bg-blue-600/30 text-white'
-              : 'text-gray-300 hover:bg-gray-800'
+              ? 'bg-primary-surface text-on-surface'
+              : 'text-on-surface-secondary hover:bg-surface-elevated'
           }`}
           onMouseDown={(e) => {
             e.preventDefault();
             onSelect(cmd);
           }}
         >
-          <span className="font-mono text-blue-400 font-medium w-28 shrink-0 text-xs">
+          <span className="font-mono text-primary font-medium w-28 shrink-0 text-xs">
             {cmd.name}
           </span>
-          <span className="text-gray-400 text-xs truncate flex-1">
+          <span className="text-on-surface-secondary text-xs truncate flex-1">
             {cmd.description}
           </span>
           {cmd.args && (
-            <span className="text-[10px] text-gray-600 font-mono shrink-0">{cmd.args}</span>
+            <span className="text-[10px] text-on-surface-muted font-mono shrink-0">{cmd.args}</span>
           )}
         </button>
       ))}
