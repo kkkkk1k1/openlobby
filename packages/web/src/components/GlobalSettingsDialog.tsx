@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { useLobbyStore } from '../stores/lobby-store';
 import { wsSetAdapterDefault, wsSetConfig } from '../hooks/useWebSocket';
+import { useThemeContext } from '../contexts/ThemeContext';
+import { useI18nContext } from '../contexts/I18nContext';
+import type { Theme } from '../hooks/useTheme';
+import type { Locale } from '../i18n/types';
 
 interface Props {
   onClose: () => void;
@@ -15,6 +19,8 @@ export default function GlobalSettingsDialog({ onClose }: Props) {
   const [defaultViewMode, setDefaultViewMode] = useState(serverConfig.defaultViewMode ?? 'im');
   const [showConfirm, setShowConfirm] = useState(false);
   const [pendingAdapter, setPendingAdapter] = useState('');
+  const { theme, setTheme } = useThemeContext();
+  const { locale, setLocale, t } = useI18nContext();
 
   const handleAdapterChange = (value: string) => {
     if (value !== (serverConfig.defaultAdapter ?? 'claude-code')) {
@@ -36,131 +42,178 @@ export default function GlobalSettingsDialog({ onClose }: Props) {
     wsSetConfig('defaultMessageMode', value);
   };
 
+  const themeOptions: Array<{ value: Theme; label: string }> = [
+    { value: 'system', label: t('common.system') },
+    { value: 'light', label: t('common.light') },
+    { value: 'dark', label: t('common.dark') },
+  ];
+
+  const localeOptions: Array<{ value: Locale; label: string }> = [
+    { value: 'zh-CN', label: t('globalSettings.localeZhCn') },
+    { value: 'en', label: t('globalSettings.localeEn') },
+  ];
+
+  const messageModeOptions = [
+    { value: 'msg-tidy', label: t('messageMode.tidy') },
+    { value: 'msg-only', label: t('messageMode.only') },
+    { value: 'msg-total', label: t('messageMode.total') },
+  ];
+
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-[var(--color-surface-overlay)] flex items-center justify-center z-50" onClick={onClose}>
       <div
-        className="bg-gray-900 rounded-xl p-6 w-full max-w-md border border-gray-700 max-h-[80vh] overflow-y-auto"
+        className="bg-surface-secondary rounded-xl w-full max-w-md border border-outline max-h-[80vh] min-h-0 overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-bold mb-5 text-gray-100">Settings</h2>
+        <div className="shrink-0 px-6 pt-6 pb-4 border-b border-outline bg-surface-secondary">
+          <h2 className="text-lg font-bold text-on-surface">{t('globalSettings.title')}</h2>
+        </div>
 
-        <div className="space-y-5">
-          {/* Default Adapter */}
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Default Adapter</label>
-            <select
-              value={defaultAdapter}
-              onChange={(e) => handleAdapterChange(e.target.value)}
-              className="w-full bg-gray-800 text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="claude-code">Claude Code</option>
-              <option value="codex-cli">Codex CLI</option>
-              <option value="opencode">OpenCode</option>
-              <option value="gsd">GSD</option>
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Affects new sessions and Lobby Manager
-            </p>
-          </div>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-5">
+          <div className="space-y-5">
+            <div>
+              <label className="block text-sm text-on-surface-secondary mb-1">{t('common.language')}</label>
+              <select
+                value={locale}
+                onChange={(e) => setLocale(e.target.value as Locale)}
+                className="w-full bg-surface-elevated text-on-surface rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {localeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
 
-          {/* Default Message Mode */}
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Default Message Mode</label>
-            <select
-              value={defaultMessageMode}
-              onChange={(e) => handleMessageModeChange(e.target.value)}
-              className="w-full bg-gray-800 text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="msg-tidy">Tidy (collapse tool calls)</option>
-              <option value="msg-only">Messages only</option>
-              <option value="msg-total">All messages</option>
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Default for newly created sessions
-            </p>
-          </div>
+            <div>
+              <label className="block text-sm text-on-surface-secondary mb-1">{t('common.theme')}</label>
+              <select
+                value={theme}
+                onChange={(e) => setTheme(e.target.value as Theme)}
+                className="w-full bg-surface-elevated text-on-surface rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {themeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
 
-          {/* Default View Mode */}
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Default View Mode</label>
-            <select
-              value={defaultViewMode}
-              onChange={(e) => {
-                setDefaultViewMode(e.target.value);
-                wsSetConfig('defaultViewMode', e.target.value);
-              }}
-              className="w-full bg-gray-800 text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="im">IM (chat bubbles)</option>
-              <option value="terminal">Terminal</option>
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Default for newly created sessions
-            </p>
-          </div>
+            <div>
+              <label className="block text-sm text-on-surface-secondary mb-1">{t('globalSettings.defaultAdapter')}</label>
+              <select
+                value={defaultAdapter}
+                onChange={(e) => handleAdapterChange(e.target.value)}
+                className="w-full bg-surface-elevated text-on-surface rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="claude-code">Claude Code</option>
+                <option value="codex-cli">Codex CLI</option>
+                <option value="opencode">OpenCode</option>
+                <option value="gsd">GSD</option>
+              </select>
+              <p className="text-xs text-on-surface-muted mt-1">
+                {t('globalSettings.defaultAdapterHelp')}
+              </p>
+            </div>
 
-          {/* Default Permission Mode per Adapter */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-300 mb-2">Default Permission Mode per Adapter</h3>
-            <div className="space-y-3">
-              {adapterDefaults.map((def) => {
-                const meta = adapterMeta[def.adapterName];
-                return (
-                  <div key={def.adapterName}>
-                    <label className="block text-sm text-gray-400 mb-1">{def.displayName}</label>
-                    <select
-                      value={def.permissionMode}
-                      onChange={(e) => wsSetAdapterDefault(def.adapterName, e.target.value)}
-                      className="w-full bg-gray-800 text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {(['auto', 'supervised', 'readonly'] as const).map((mode) => {
-                        const native = meta?.modeLabels?.[mode] ?? '';
-                        const label = mode.charAt(0).toUpperCase() + mode.slice(1);
-                        return (
-                          <option key={mode} value={mode}>
-                            {label}{native ? ` (${native})` : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                );
-              })}
+            <div>
+              <label className="block text-sm text-on-surface-secondary mb-1">{t('globalSettings.defaultMessageMode')}</label>
+              <select
+                value={defaultMessageMode}
+                onChange={(e) => handleMessageModeChange(e.target.value)}
+                className="w-full bg-surface-elevated text-on-surface rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {messageModeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-on-surface-muted mt-1">
+                {t('globalSettings.defaultNewSessions')}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm text-on-surface-secondary mb-1">{t('globalSettings.defaultViewMode')}</label>
+              <select
+                value={defaultViewMode}
+                onChange={(e) => {
+                  setDefaultViewMode(e.target.value);
+                  wsSetConfig('defaultViewMode', e.target.value);
+                }}
+                className="w-full bg-surface-elevated text-on-surface rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="im">{t('globalSettings.imChatBubbles')}</option>
+                <option value="terminal">{t('common.terminal')}</option>
+              </select>
+              <p className="text-xs text-on-surface-muted mt-1">
+                {t('globalSettings.defaultNewSessions')}
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-on-surface-secondary mb-2">{t('globalSettings.defaultPermissionModes')}</h3>
+              <div className="space-y-3">
+                {adapterDefaults.map((def) => {
+                  const meta = adapterMeta[def.adapterName];
+                  return (
+                    <div key={def.adapterName}>
+                      <label className="block text-sm text-on-surface-secondary mb-1">{def.displayName}</label>
+                      <select
+                        value={def.permissionMode}
+                        onChange={(e) => wsSetAdapterDefault(def.adapterName, e.target.value)}
+                        className="w-full bg-surface-elevated text-on-surface rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        {(['auto', 'supervised', 'readonly'] as const).map((mode) => {
+                          const native = meta?.modeLabels?.[mode] ?? '';
+                          const label = mode === 'auto'
+                            ? t('roomHeader.auto')
+                            : mode === 'supervised'
+                              ? t('roomHeader.supervised')
+                              : t('roomHeader.readonly');
+                          return (
+                            <option key={mode} value={mode}>
+                              {label}{native ? ` (${native})` : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="flex justify-end mt-6">
+        <div className="shrink-0 flex justify-end px-6 py-4 border-t border-outline bg-surface-secondary">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-400 hover:text-gray-200 rounded-lg hover:bg-gray-800"
+            className="px-4 py-2 text-sm text-on-surface-secondary hover:text-on-surface rounded-lg hover:bg-surface-elevated"
           >
-            Close
+            {t('common.close')}
           </button>
         </div>
       </div>
 
       {showConfirm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]" onClick={() => setShowConfirm(false)}>
-          <div className="bg-gray-800 rounded-xl w-96 border border-gray-600 shadow-2xl p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-gray-100 mb-2">
-              切换默认 Adapter？
+        <div className="fixed inset-0 bg-[var(--color-surface-overlay)] flex items-center justify-center z-[60]" onClick={() => setShowConfirm(false)}>
+          <div className="bg-surface-elevated rounded-xl w-96 border border-outline shadow-2xl p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-on-surface mb-2">
+              {t('globalSettings.confirmAdapterSwitchTitle')}
             </h3>
-            <p className="text-xs text-gray-400 mb-4">
-              切换默认 Adapter 将重建 Lobby Manager，历史记录不保留。确认？
+            <p className="text-xs text-on-surface-secondary mb-4">
+              {t('globalSettings.confirmAdapterSwitchBody')}
             </p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowConfirm(false)}
-                className="px-3 py-1.5 text-xs rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300"
+                className="px-3 py-1.5 text-xs rounded-lg bg-surface-elevated hover:bg-[var(--color-sidebar-hover)] text-on-surface-secondary border border-outline"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={confirmAdapterChange}
-                className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium"
+                className="px-3 py-1.5 text-xs rounded-lg bg-primary hover:bg-primary-hover text-primary-on font-medium"
               >
-                Confirm
+                {t('common.confirm')}
               </button>
             </div>
           </div>

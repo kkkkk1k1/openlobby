@@ -2,32 +2,29 @@ import React, { useState } from 'react';
 import { useLobbyStore } from '../stores/lobby-store';
 import type { SessionSummaryData } from '../stores/lobby-store';
 import { wsRequestSessionHistory, wsDiscoverSessions, wsPinSession, wsRenameSession } from '../hooks/useWebSocket';
-// NewSessionDialog removed — Lobby Manager handles session creation
+import { useThemeContext } from '../contexts/ThemeContext';
+import { useI18nContext } from '../contexts/I18nContext';
+import type { Theme } from '../hooks/useTheme';
 import DiscoverDialog from './DiscoverDialog';
 import ChannelManagePanel from './ChannelManagePanel';
 import GlobalSettingsDialog from './GlobalSettingsDialog';
 
 const APP_VERSION = __APP_VERSION__;
 
-function formatRelativeTime(timestamp: number): string {
+function formatRelativeTime(
+  timestamp: number,
+  t: ReturnType<typeof useI18nContext>['t'],
+): string {
   const diff = Date.now() - timestamp;
   const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return 'just now';
+  if (seconds < 60) return t('time.justNow');
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t('time.minutesAgo', { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t('time.hoursAgo', { count: hours });
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return t('time.daysAgo', { count: days });
 }
-
-const statusConfig: Record<string, { color: string; label: string; pulse?: boolean }> = {
-  running: { color: 'bg-green-400', label: 'Running' },
-  awaiting_approval: { color: 'bg-orange-400', label: 'Needs Approval', pulse: true },
-  idle: { color: 'bg-yellow-400', label: 'Idle' },
-  stopped: { color: 'bg-red-400', label: 'Stopped' },
-  error: { color: 'bg-red-500', label: 'Error' },
-};
 
 function SessionCard({
   session,
@@ -42,6 +39,15 @@ function SessionCard({
   onPin: (pinned: boolean) => void;
   onRename: (name: string) => void;
 }) {
+  const { t } = useI18nContext();
+  const statusConfig: Record<string, { color: string; label: string; pulse?: boolean }> = {
+    running: { color: 'bg-success', label: t('sidebar.statusRunning') },
+    awaiting_approval: { color: 'bg-warning', label: t('sidebar.statusNeedsApproval'), pulse: true },
+    idle: { color: 'bg-yellow-400', label: t('sidebar.statusIdle') },
+    stopped: { color: 'bg-danger', label: t('sidebar.statusStopped') },
+    error: { color: 'bg-red-500', label: t('sidebar.statusError') },
+  };
+
   const config = statusConfig[session.status] ?? statusConfig.idle;
   const isAwaiting = session.status === 'awaiting_approval';
   const isPinned = session.pinned ?? false;
@@ -69,13 +75,13 @@ function SessionCard({
       onMouseLeave={() => setIsHovered(false)}
       className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors relative ${
         isActive
-          ? 'bg-gray-700 border-l-2 border-blue-400'
+          ? 'bg-[var(--color-sidebar-active)] border-l-2 border-primary'
           : isPinned
-            ? 'bg-blue-950/40 hover:bg-blue-900/40 border-l-2 border-blue-500/50'
-            : 'hover:bg-gray-800'
+            ? 'bg-primary-surface border-l-2 border-primary/50'
+            : 'hover:bg-[var(--color-sidebar-hover)]'
       } ${
         isAwaiting
-          ? 'bg-orange-900/30 border-l-2 border-orange-400 ring-1 ring-orange-500/30'
+          ? 'bg-warning-surface border-l-2 border-warning ring-1 ring-warning/30'
           : ''
       }`}
     >
@@ -97,11 +103,11 @@ function SessionCard({
             }}
             onBlur={handleRenameConfirm}
             onClick={(e) => e.stopPropagation()}
-            className="text-sm font-medium text-gray-100 bg-gray-600 border border-gray-500 rounded px-1 py-0 flex-1 min-w-0 outline-none focus:border-blue-400"
+            className="text-sm font-medium text-on-surface bg-surface-elevated border border-outline rounded px-1 py-0 flex-1 min-w-0 outline-none focus:border-primary"
           />
         ) : (
           <>
-            <span className="text-sm font-medium text-gray-100 truncate">
+            <span className="text-sm font-medium text-on-surface truncate">
               {session.displayName}
             </span>
             {isHovered && (
@@ -111,8 +117,8 @@ function SessionCard({
                   setEditName(session.displayName);
                   setIsEditing(true);
                 }}
-                className="shrink-0 p-0.5 rounded text-xs text-gray-500 hover:text-gray-300 cursor-pointer transition-colors"
-                title="Rename"
+                className="shrink-0 p-0.5 rounded text-xs text-on-surface-muted hover:text-on-surface cursor-pointer transition-colors"
+                title={t('sidebar.rename')}
               >
                 ✏️
               </span>
@@ -120,7 +126,6 @@ function SessionCard({
           </>
         )}
         <span className="flex-1" />
-        {/* Pin button — before adapter badge */}
         {(isHovered || isPinned) && !isEditing && (
           <span
             onClick={(e) => {
@@ -129,41 +134,47 @@ function SessionCard({
             }}
             className={`shrink-0 p-0.5 rounded text-xs cursor-pointer transition-colors ${
               isPinned
-                ? 'text-blue-400 hover:text-blue-300'
-                : 'text-gray-500 hover:text-gray-300'
+                ? 'text-primary hover:text-primary-hover'
+                : 'text-on-surface-muted hover:text-on-surface'
             }`}
-            title={isPinned ? 'Unpin' : 'Pin to top'}
+            title={isPinned ? t('sidebar.unpin') : t('sidebar.pinToTop')}
           >
             📌
           </span>
         )}
         {isAwaiting ? (
-          <span className="shrink-0 text-[10px] text-orange-300 bg-orange-500/20 px-1.5 py-0.5 rounded font-medium animate-pulse">
-            Approval
+          <span className="shrink-0 text-[10px] text-warning bg-warning-surface px-1.5 py-0.5 rounded font-medium animate-pulse">
+            {t('sidebar.approval')}
           </span>
         ) : (
-          <span className="shrink-0 text-xs text-gray-500 uppercase">
+          <span className="shrink-0 text-xs text-on-surface-muted uppercase">
             {session.adapterName === 'claude-code' ? 'CC' : session.adapterName === 'codex-cli' ? 'CX' : session.adapterName === 'opencode' ? 'OC' : session.adapterName === 'gsd' ? 'GSD' : session.adapterName}
           </span>
         )}
       </div>
       {session.channelBinding && (
         <div className="flex items-center gap-1 pl-4 mb-0.5">
-          <span className="text-[10px] text-purple-400 bg-purple-500/15 px-1.5 py-0.5 rounded">
+          <span className="text-[10px] text-info bg-info-surface px-1.5 py-0.5 rounded">
             {session.channelBinding.channelName}: {session.channelBinding.peerDisplayName ?? session.channelBinding.peerId}
           </span>
         </div>
       )}
       <div className="flex items-center justify-between pl-4">
-        <span className="text-xs text-gray-400 truncate flex-1">
+        <span className="text-xs text-on-surface-secondary truncate flex-1">
           {session.lastMessage ?? session.cwd}
         </span>
-        <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
-          {formatRelativeTime(session.lastActiveAt)}
+        <span className="text-xs text-on-surface-muted ml-2 whitespace-nowrap">
+          {formatRelativeTime(session.lastActiveAt, t)}
         </span>
       </div>
     </button>
   );
+}
+
+function ThemeIcon({ theme }: { theme: Theme }) {
+  if (theme === 'dark') return <span>🌙</span>;
+  if (theme === 'light') return <span>☀️</span>;
+  return <span>💻</span>;
 }
 
 export default function Sidebar() {
@@ -178,16 +189,15 @@ export default function Sidebar() {
   const [showChannelPanel, setShowChannelPanel] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const channelProviders = useLobbyStore((s) => s.channelProviders);
+  const { theme, setTheme } = useThemeContext();
+  const { locale, setLocale, t } = useI18nContext();
 
-  // Filter out the Lobby Manager session from the regular list
   const sortedSessions = Object.values(sessions)
     .filter((s) => s.origin !== 'lobby-manager')
     .sort((a, b) => {
-      // Pinned sessions first
       const aPinned = a.pinned ? 1 : 0;
       const bPinned = b.pinned ? 1 : 0;
       if (bPinned !== aPinned) return bPinned - aPinned;
-      // Then by last active time
       return b.lastActiveAt - a.lastActiveAt;
     });
 
@@ -196,29 +206,43 @@ export default function Sidebar() {
     wsRequestSessionHistory(id);
   };
 
+  const cycleTheme = () => {
+    const next: Theme = theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system';
+    setTheme(next);
+  };
+
+  const toggleLocale = () => {
+    setLocale(locale === 'zh-CN' ? 'en' : 'zh-CN');
+  };
+
+  const themeLabel =
+    theme === 'system'
+      ? t('common.system')
+      : theme === 'light'
+        ? t('common.light')
+        : t('common.dark');
+
   return (
     <>
-      <aside className="w-72 bg-gray-900 border-r border-gray-700 flex flex-col h-full">
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
-          <h1 className="text-lg font-bold text-gray-100">OpenLobby</h1>
+      <aside className="w-72 bg-surface-secondary border-r border-outline flex flex-col h-full">
+        <div className="px-4 py-3 border-b border-outline flex items-center justify-between">
+          <h1 className="text-lg font-bold text-on-surface">OpenLobby</h1>
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => wsDiscoverSessions()}
               disabled={!connected}
-              title="Import CLI sessions"
-              className="px-3 py-1 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium"
+              title={t('sidebar.importCliSessions')}
+              className="px-3 py-1 text-sm rounded-lg bg-primary hover:bg-primary-hover disabled:opacity-50 text-primary-on font-medium"
             >
-              + Import
+              + {t('common.import')}
             </button>
           </div>
         </div>
 
-        {/* Session list */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {sortedSessions.length === 0 && (
-            <div className="text-gray-500 text-sm text-center mt-8 px-4">
-              No sessions yet. Click "+ New" to create one.
+            <div className="text-on-surface-muted text-sm text-center mt-8 px-4">
+              {t('sidebar.empty')}
             </div>
           )}
           {sortedSessions.map((session) => (
@@ -239,8 +263,7 @@ export default function Sidebar() {
           ))}
         </div>
 
-        {/* Lobby Manager session */}
-        <div className="px-4 py-2 border-t border-gray-700">
+        <div className="px-4 py-2 border-t border-outline">
           <button
             onClick={() => {
               if (lmSessionId) {
@@ -250,50 +273,64 @@ export default function Sidebar() {
             disabled={!lmAvailable || !lmSessionId}
             className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
               activeSessionId === lmSessionId
-                ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30'
-                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                ? 'bg-primary-surface text-primary border border-primary/30'
+                : 'bg-surface-elevated text-on-surface-secondary hover:bg-[var(--color-sidebar-hover)]'
             } disabled:opacity-40 disabled:cursor-not-allowed`}
-            title={lmAvailable ? 'Open Lobby Manager session' : 'No CLI adapter available'}
+            title={lmAvailable ? t('sidebar.openLobbyManagerSession') : t('sidebar.noCliAdapterAvailable')}
           >
             <span>&#x1F3E8;</span>
-            <span className="font-medium">Lobby Manager</span>
+            <span className="font-medium">{t('sidebar.lobbyManager')}</span>
             {lmAvailable && (
-              <span className="ml-auto inline-block w-2 h-2 rounded-full bg-green-400" />
+              <span className="ml-auto inline-block w-2 h-2 rounded-full bg-success" />
             )}
           </button>
         </div>
 
-        {/* IM Channels button */}
-        <div className="px-4 py-2 border-t border-gray-700">
+        <div className="px-4 py-2 border-t border-outline">
           <button
             onClick={() => setShowChannelPanel(true)}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-surface-elevated text-on-surface-secondary hover:bg-[var(--color-sidebar-hover)] transition-colors"
           >
             <span>&#x1F4AC;</span>
-            <span className="font-medium">IM Channels</span>
+            <span className="font-medium">{t('sidebar.imChannels')}</span>
             {channelProviders.length > 0 && (
-              <span className="ml-auto text-xs text-gray-500">
+              <span className="ml-auto text-xs text-on-surface-muted">
                 {channelProviders.filter((p) => p.healthy).length}/{channelProviders.length}
               </span>
             )}
           </button>
         </div>
 
-        {/* Settings + Connection status + Version */}
-        <div className="px-4 py-2 border-t border-gray-700 flex items-center justify-between">
-          <button
-            onClick={() => setShowSettingsDialog(true)}
-            className="text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-800 px-2 py-1 rounded transition-colors"
-          >
-            ⚙️ Settings
-          </button>
+        <div className="px-4 py-2 border-t border-outline flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowSettingsDialog(true)}
+              className="text-xs text-on-surface-secondary hover:text-on-surface hover:bg-surface-elevated px-2 py-1 rounded transition-colors"
+            >
+              ⚙️ {t('common.settings')}
+            </button>
+            <button
+              onClick={cycleTheme}
+              className="text-xs text-on-surface-secondary hover:text-on-surface hover:bg-surface-elevated px-2 py-1 rounded transition-colors"
+              title={t('sidebar.themeTitle', { theme: themeLabel })}
+            >
+              <ThemeIcon theme={theme} />
+            </button>
+            <button
+              onClick={toggleLocale}
+              className="text-xs text-on-surface-secondary hover:text-on-surface hover:bg-surface-elevated px-2 py-1 rounded transition-colors font-medium"
+              title={t('sidebar.toggleLanguage')}
+            >
+              {locale === 'zh-CN' ? 'EN' : '中'}
+            </button>
+          </div>
           <div className="flex items-center gap-2">
             <span
               className={`inline-block w-2 h-2 rounded-full ${
-                connected ? 'bg-green-400' : 'bg-red-400'
+                connected ? 'bg-success' : 'bg-danger'
               }`}
             />
-            <span className="text-xs text-gray-500">v{APP_VERSION}</span>
+            <span className="text-xs text-on-surface-muted">v{APP_VERSION}</span>
           </div>
         </div>
       </aside>

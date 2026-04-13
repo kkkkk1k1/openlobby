@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { LobbyMessageData } from '../stores/lobby-store';
 import { wsCompactSession } from '../hooks/useWebSocket';
+import { useI18nContext } from '../contexts/I18nContext';
 import ChoiceCard, { type ChoiceOption } from './ChoiceCard';
 
 interface Props {
@@ -11,16 +12,18 @@ interface Props {
 }
 
 class MessageErrorBoundary extends Component<
-  { children: ReactNode },
+  { children: ReactNode; fallbackText: string },
   { hasError: boolean }
 > {
   state = { hasError: false };
+
   static getDerivedStateFromError() {
     return { hasError: true };
   }
+
   render() {
     if (this.state.hasError) {
-      return <div className="text-red-400 text-xs italic">[Render error]</div>;
+      return <div className="text-danger text-xs italic">{this.props.fallbackText}</div>;
     }
     return this.props.children;
   }
@@ -33,6 +36,8 @@ function formatTime(ts: number): string {
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useI18nContext();
+
   return (
     <button
       onClick={() => {
@@ -40,9 +45,9 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
-      className="text-[10px] text-gray-500 hover:text-gray-300 px-1.5 py-0.5 rounded hover:bg-gray-700 transition-colors"
+      className="text-[10px] text-on-surface-muted hover:text-on-surface px-1.5 py-0.5 rounded hover:bg-surface-elevated transition-colors"
     >
-      {copied ? 'Copied!' : 'Copy'}
+      {copied ? t('common.copied') : t('common.copy')}
     </button>
   );
 }
@@ -54,18 +59,19 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
   if (match) {
     return (
       <div className="relative group">
-        <div className="flex items-center justify-between text-[10px] text-gray-500 px-3 pt-1.5">
+        <div className="flex items-center justify-between text-[10px] text-on-surface-muted px-3 pt-1.5">
           <span>{match[1]}</span>
           <CopyButton text={code} />
         </div>
-        <pre className="bg-gray-900 rounded-md px-3 pb-2 pt-1 overflow-x-auto text-sm">
+        <pre className="bg-[var(--color-code-bg)] rounded-md px-3 pb-2 pt-1 overflow-x-auto text-sm">
           <code className={className}>{code}</code>
         </pre>
       </div>
     );
   }
+
   return (
-    <code className="bg-gray-700 px-1 py-0.5 rounded text-sm">{children}</code>
+    <code className="bg-[var(--color-code-inline-bg)] px-1 py-0.5 rounded text-sm">{children}</code>
   );
 }
 
@@ -150,28 +156,28 @@ function AssistantContent({ content, onChoiceSelect }: { content: string; onChoi
 }
 
 function ToolUseContent({ msg }: { msg: LobbyMessageData }) {
-  const toolName = msg.meta?.toolName ?? 'Unknown';
+  const { t } = useI18nContext();
+  const toolName = msg.meta?.toolName ?? t('messageBubble.unknownTool');
   const raw = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2);
-  // Show a one-line summary of the input
   const summary = raw.length > 100 ? raw.slice(0, 100) + '...' : raw;
   const [expanded, setExpanded] = useState(false);
 
   return (
     <div className="font-mono text-xs">
       <div className="flex items-center gap-1.5">
-        <span className="text-yellow-400 font-bold">{String(toolName)}</span>
-        <span className="text-gray-400 truncate flex-1">{summary}</span>
+        <span className="text-warning font-bold">{String(toolName)}</span>
+        <span className="text-on-surface-secondary truncate flex-1">{summary}</span>
       </div>
       {raw.length > 100 && (
         <div>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="text-[10px] text-gray-500 hover:text-gray-300 mt-0.5"
+            className="text-[10px] text-on-surface-muted hover:text-on-surface mt-0.5"
           >
-            {expanded ? '- Collapse' : '+ Expand'}
+            {expanded ? t('messageBubble.collapse') : t('messageBubble.expand')}
           </button>
           {expanded && (
-            <pre className="text-gray-300 mt-1 overflow-auto max-h-60 p-2 bg-gray-900/50 rounded">
+            <pre className="text-on-surface-secondary mt-1 overflow-auto max-h-60 p-2 bg-[var(--color-code-bg)] rounded">
               {raw}
             </pre>
           )}
@@ -182,6 +188,7 @@ function ToolUseContent({ msg }: { msg: LobbyMessageData }) {
 }
 
 function ToolResultContent({ msg }: { msg: LobbyMessageData }) {
+  const { t } = useI18nContext();
   const raw = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2);
   const isError = msg.meta?.isError;
   const lines = raw.split('\n');
@@ -191,16 +198,18 @@ function ToolResultContent({ msg }: { msg: LobbyMessageData }) {
 
   return (
     <div className="font-mono text-xs">
-      {isError === true && <span className="text-red-400 text-[10px]">Error </span>}
-      <pre className={`text-gray-300 overflow-auto ${!expanded && isLong ? 'max-h-24' : 'max-h-60'} whitespace-pre-wrap`}>
+      {isError === true && <span className="text-danger text-[10px]">{t('messageBubble.error')} </span>}
+      <pre className={`text-on-surface-secondary overflow-auto ${!expanded && isLong ? 'max-h-24' : 'max-h-60'} whitespace-pre-wrap`}>
         {expanded ? raw : preview}
       </pre>
       {isLong && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-[10px] text-gray-500 hover:text-gray-300 mt-0.5"
+          className="text-[10px] text-on-surface-muted hover:text-on-surface mt-0.5"
         >
-          {expanded ? '- Show less' : `+ Show all (${lines.length} lines)`}
+          {expanded
+            ? t('messageBubble.showLess')
+            : t('messageBubble.showAll', { count: lines.length })}
         </button>
       )}
     </div>
@@ -208,6 +217,7 @@ function ToolResultContent({ msg }: { msg: LobbyMessageData }) {
 }
 
 function ResultContent({ msg }: { msg: LobbyMessageData }) {
+  const { t } = useI18nContext();
   const meta = msg.meta ?? {};
   const content = typeof msg.content === 'string' ? msg.content : '';
   const tokenUsage = meta.tokenUsage as { input: number; output: number } | undefined;
@@ -217,10 +227,12 @@ function ResultContent({ msg }: { msg: LobbyMessageData }) {
     <div className="flex items-center gap-3 text-xs">
       {content && <span>{content}</span>}
       {tokenUsage != null && (
-        <span className="text-gray-400">{tokenUsage.input + tokenUsage.output} tokens</span>
+        <span className="text-on-surface-secondary">
+          {t('messageBubble.tokens', { count: tokenUsage.input + tokenUsage.output })}
+        </span>
       )}
       {costUsd != null && (
-        <span className="text-gray-400">${costUsd.toFixed(4)}</span>
+        <span className="text-on-surface-secondary">${costUsd.toFixed(4)}</span>
       )}
     </div>
   );
@@ -241,12 +253,7 @@ function fileName(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1);
 }
 
-/**
- * Strip Claude Code protocol XML tags that are injected into user turns
- * but are not user-authored content (system reminders, task notifications, etc.).
- */
 function stripProtocolTags(text: string): string {
-  // Remove known protocol XML blocks (including multiline content)
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
     .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, '')
@@ -257,7 +264,6 @@ function stripProtocolTags(text: string): string {
 }
 
 function UserContent({ content }: { content: string }) {
-  // Parse [Attached: /path/to/file] patterns
   const attachRegex = /\[Attached:\s*(.+?)\]/g;
   const attachments: string[] = [];
   let textContent = stripProtocolTags(content);
@@ -279,17 +285,11 @@ function UserContent({ content }: { content: string }) {
         <div className="flex flex-wrap gap-2 mt-2">
           {attachments.map((path, i) =>
             isImagePath(path) ? (
-              <a
-                key={i}
-                href={fileUrl(path)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block"
-              >
+              <a key={i} href={fileUrl(path)} target="_blank" rel="noopener noreferrer" className="block">
                 <img
                   src={fileUrl(path)}
                   alt={fileName(path)}
-                  className="max-w-[200px] max-h-[150px] rounded-lg object-cover border border-blue-400/30 hover:border-blue-300 transition-colors"
+                  className="max-w-[200px] max-h-[150px] rounded-lg object-cover border border-primary/30 hover:border-primary transition-colors"
                 />
               </a>
             ) : (
@@ -298,7 +298,7 @@ function UserContent({ content }: { content: string }) {
                 href={fileUrl(path)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 bg-blue-500/20 rounded-lg px-2.5 py-1.5 text-xs text-blue-100 hover:bg-blue-500/30 transition-colors"
+                className="flex items-center gap-1.5 bg-primary-surface rounded-lg px-2.5 py-1.5 text-xs text-primary hover:bg-primary-surface/80 transition-colors"
               >
                 <span>📄</span>
                 <span className="truncate max-w-[150px]">{fileName(path)}</span>
@@ -312,40 +312,42 @@ function UserContent({ content }: { content: string }) {
 }
 
 function CompactContent({ msg }: { msg: LobbyMessageData }) {
-  const content = typeof msg.content === 'object' ? msg.content as Record<string, unknown> : {};
+  const { t } = useI18nContext();
+  const content = typeof msg.content === 'object' ? (msg.content as Record<string, unknown>) : {};
 
-  // Compact suggestion
   if (content.compactSuggestion) {
     const tokensK = Math.round((content.currentTokens as number) / 1000);
     return (
-      <div className="flex items-center gap-2 text-xs text-yellow-400">
-        <span>Context approaching limit ({tokensK}K tokens).</span>
+      <div className="flex items-center gap-2 text-xs text-warning">
+        <span>{t('messageBubble.contextLimit', { count: tokensK })}</span>
         <button
           onClick={() => wsCompactSession(msg.sessionId)}
-          className="px-2 py-0.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 rounded text-xs transition-colors"
+          className="px-2 py-0.5 bg-warning-surface hover:bg-warning-surface/80 text-warning rounded text-xs transition-colors"
         >
-          Compact Now
+          {t('messageBubble.compactNow')}
         </button>
       </div>
     );
   }
 
-  // Compacting in progress
   if (content.compacting) {
     return (
-      <div className="flex items-center gap-2 text-xs text-blue-400">
-        <span className="animate-pulse">Compacting conversation...</span>
+      <div className="flex items-center gap-2 text-xs text-primary">
+        <span className="animate-pulse">{t('messageBubble.compacting')}</span>
       </div>
     );
   }
 
-  // Compact complete
   if (content.compact) {
     const preTokens = content.preTokens as number | undefined;
     const preK = preTokens ? Math.round(preTokens / 1000) : null;
     return (
-      <div className="flex items-center gap-2 text-xs text-green-400">
-        <span>Conversation compacted{preK ? ` (was ${preK}K tokens)` : ''}</span>
+      <div className="flex items-center gap-2 text-xs text-success">
+        <span>
+          {preK
+            ? t('messageBubble.compactedWas', { count: preK })
+            : t('messageBubble.compacted')}
+        </span>
       </div>
     );
   }
@@ -354,6 +356,7 @@ function CompactContent({ msg }: { msg: LobbyMessageData }) {
 }
 
 export default function MessageBubble({ msg, onChoiceSelect }: Props) {
+  const { t } = useI18nContext();
   const content =
     typeof msg.content === 'string'
       ? msg.content
@@ -364,13 +367,12 @@ export default function MessageBubble({ msg, onChoiceSelect }: Props) {
   const isTool = msg.type === 'tool_use' || msg.type === 'tool_result';
   const isResult = msg.type === 'result';
 
-  // Compact system messages: centered bar (like result messages)
   if (isSystem && typeof msg.content === 'object') {
     const c = msg.content as Record<string, unknown>;
     if (c.compactSuggestion || c.compacting || c.compact) {
       return (
         <div className="flex justify-center py-1">
-          <div className="bg-gray-800/50 border border-gray-700/50 rounded-full px-4 py-1">
+          <div className="bg-surface-elevated/50 border border-outline-subtle/50 rounded-full px-4 py-1">
             <CompactContent msg={msg} />
           </div>
         </div>
@@ -378,32 +380,29 @@ export default function MessageBubble({ msg, onChoiceSelect }: Props) {
     }
   }
 
-  // System messages: centered, minimal
   if (isSystem) {
     return (
-      <div className="text-center text-gray-500 text-xs italic py-1">
+      <div className="text-center text-on-surface-muted text-xs italic py-1">
         {content}
       </div>
     );
   }
 
-  // Result messages: centered bar
   if (isResult) {
     return (
       <div className="flex justify-center py-1">
-        <div className="bg-gray-800/50 border border-gray-700/50 rounded-full px-4 py-1">
+        <div className="bg-surface-elevated/50 border border-outline-subtle/50 rounded-full px-4 py-1">
           <ResultContent msg={msg} />
         </div>
       </div>
     );
   }
 
-  // Tool messages: compact, left-aligned, no bubble style
   if (isTool) {
     return (
-      <MessageErrorBoundary>
+      <MessageErrorBoundary fallbackText={t('messageBubble.renderError')}>
         <div className={`ml-2 pl-3 border-l-2 ${
-          msg.type === 'tool_use' ? 'border-yellow-500/40' : 'border-green-500/40'
+          msg.type === 'tool_use' ? 'border-warning/40' : 'border-success/40'
         } py-1 mb-1`}>
           {msg.type === 'tool_use' ? (
             <ToolUseContent msg={msg} />
@@ -415,21 +414,20 @@ export default function MessageBubble({ msg, onChoiceSelect }: Props) {
     );
   }
 
-  // User and assistant messages: IM-style left/right alignment
   return (
-    <MessageErrorBoundary>
+    <MessageErrorBoundary fallbackText={t('messageBubble.renderError')}>
       <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-2`}>
         <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
           isUser
-            ? 'bg-blue-600 text-white rounded-br-md'
-            : 'bg-gray-800 text-gray-100 rounded-bl-md'
+            ? 'bg-[var(--color-user-bubble)] text-[var(--color-user-bubble-text)] rounded-br-md'
+            : 'bg-[var(--color-assistant-bubble)] text-[var(--color-assistant-bubble-text)] rounded-bl-md'
         }`}>
           {isUser ? (
             <UserContent content={content} />
           ) : (
             <AssistantContent content={content} onChoiceSelect={onChoiceSelect} />
           )}
-          <div className={`text-[10px] mt-1 ${isUser ? 'text-blue-200/60' : 'text-gray-500'} text-right`}>
+          <div className={`text-[10px] mt-1 ${isUser ? 'text-[var(--color-user-bubble-timestamp)]' : 'text-on-surface-muted'} text-right`}>
             {formatTime(msg.timestamp)}
           </div>
         </div>

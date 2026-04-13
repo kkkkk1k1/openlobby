@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import type { ControlQuestionData } from '../stores/lobby-store';
+import { useI18nContext } from '../contexts/I18nContext';
 
 interface Props {
   requestId: string;
@@ -8,11 +9,10 @@ interface Props {
 }
 
 export default function QuestionCard({ requestId, questions, onSubmit }: Props) {
-  // answers[questionIndex] = selected label(s). Single-select: ["label"]. Multi-select: ["a","b"].
   const [answers, setAnswers] = useState<Record<number, string[]>>({});
-  // Per-question "Other" text
   const [otherTexts, setOtherTexts] = useState<Record<number, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const { t } = useI18nContext();
 
   const toggleOption = useCallback((qIdx: number, label: string, multiSelect: boolean) => {
     setAnswers((prev) => {
@@ -75,15 +75,15 @@ export default function QuestionCard({ requestId, questions, onSubmit }: Props) 
   };
 
   return (
-    <div className="rounded-lg px-4 py-3 mb-2 bg-violet-900/30 border border-violet-500/40">
+    <div className="rounded-lg px-4 py-3 mb-2 bg-info-surface border border-info/40">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs text-violet-400 font-semibold">QUESTION</span>
+        <span className="text-xs text-info font-semibold">{t('questionCard.title')}</span>
         {!submitted && (
           <button
             onClick={handleDeny}
-            className="px-2.5 py-1 rounded bg-red-700/60 hover:bg-red-600 text-white text-xs font-medium transition-colors"
+            className="px-2.5 py-1 rounded bg-danger/60 hover:bg-danger text-white text-xs font-medium transition-colors"
           >
-            Dismiss
+            {t('common.dismiss')}
           </button>
         )}
       </div>
@@ -91,16 +91,16 @@ export default function QuestionCard({ requestId, questions, onSubmit }: Props) 
       {questions.map((q, qIdx) => {
         const selected = answers[qIdx] ?? [];
         return (
-          <div key={qIdx} className={`${qIdx > 0 ? 'mt-4 pt-3 border-t border-gray-700/40' : ''}`}>
+          <div key={qIdx} className={`${qIdx > 0 ? 'mt-4 pt-3 border-t border-outline/40' : ''}`}>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs bg-violet-800/50 text-violet-300 px-2 py-0.5 rounded-full font-medium">
+              <span className="text-xs bg-info-surface text-info px-2 py-0.5 rounded-full font-medium">
                 {q.header}
               </span>
               {q.multiSelect && (
-                <span className="text-xs text-gray-500">(multi-select)</span>
+                <span className="text-xs text-on-surface-muted">{t('questionCard.multiSelect')}</span>
               )}
             </div>
-            <div className="text-sm text-violet-200 mb-2">{q.question}</div>
+            <div className="text-sm text-on-surface mb-2">{q.question}</div>
 
             <div className="flex flex-col gap-1.5">
               {q.options.map((opt) => {
@@ -113,44 +113,43 @@ export default function QuestionCard({ requestId, questions, onSubmit }: Props) 
                     className={`text-left rounded-md px-3 py-2 border transition-colors ${
                       submitted
                         ? isSelected
-                          ? 'border-violet-400/60 bg-violet-800/40 text-violet-100'
-                          : 'border-gray-700/30 bg-gray-800/20 text-gray-500'
+                          ? 'border-info/60 bg-info-surface text-on-surface'
+                          : 'border-outline/30 bg-surface-elevated/20 text-on-surface-muted'
                         : isSelected
-                          ? 'border-violet-400/60 bg-violet-800/40 text-violet-100'
-                          : 'border-gray-600/40 bg-gray-800/30 text-gray-300 hover:border-violet-500/40 hover:bg-violet-900/20'
+                          ? 'border-info/60 bg-info-surface text-on-surface'
+                          : 'border-outline/40 bg-surface-elevated/30 text-on-surface-secondary hover:border-info/40 hover:bg-info-surface/50'
                     }`}
                   >
                     <div className="flex items-center gap-2">
                       {q.multiSelect ? (
                         <span className={`w-3.5 h-3.5 rounded-sm border-2 flex-shrink-0 flex items-center justify-center ${
-                          isSelected ? 'border-violet-400 bg-violet-400' : 'border-gray-500'
+                          isSelected ? 'border-info bg-info' : 'border-on-surface-muted'
                         }`}>
-                          {isSelected && <span className="text-gray-900 text-[10px] font-bold">✓</span>}
+                          {isSelected && <span className="text-white text-[10px] font-bold">✓</span>}
                         </span>
                       ) : (
                         <span className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 ${
-                          isSelected ? 'border-violet-400 bg-violet-400' : 'border-gray-500'
+                          isSelected ? 'border-info bg-info' : 'border-on-surface-muted'
                         }`} />
                       )}
                       <span className="text-sm font-medium">{opt.label}</span>
                     </div>
                     {opt.description && (
-                      <div className="text-xs text-gray-400 mt-0.5 ml-[22px]">{opt.description}</div>
+                      <div className="text-xs text-on-surface-secondary mt-0.5 ml-[22px]">{opt.description}</div>
                     )}
                   </button>
                 );
               })}
 
-              {/* "Other" free-text option */}
               <div
                 className={`rounded-md px-3 py-2 border transition-colors ${
                   submitted
                     ? selected.includes('__other__')
-                      ? 'border-violet-400/60 bg-violet-800/40'
-                      : 'border-gray-700/30 bg-gray-800/20'
+                      ? 'border-info/60 bg-info-surface'
+                      : 'border-outline/30 bg-surface-elevated/20'
                     : selected.includes('__other__')
-                      ? 'border-violet-400/60 bg-violet-800/40'
-                      : 'border-gray-600/40 bg-gray-800/30'
+                      ? 'border-info/60 bg-info-surface'
+                      : 'border-outline/40 bg-surface-elevated/30'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -158,26 +157,26 @@ export default function QuestionCard({ requestId, questions, onSubmit }: Props) 
                     <span
                       onClick={() => !submitted && toggleOption(qIdx, '__other__', true)}
                       className={`w-3.5 h-3.5 rounded-sm border-2 flex-shrink-0 flex items-center justify-center cursor-pointer ${
-                        selected.includes('__other__') ? 'border-violet-400 bg-violet-400' : 'border-gray-500'
+                        selected.includes('__other__') ? 'border-info bg-info' : 'border-on-surface-muted'
                       }`}
                     >
-                      {selected.includes('__other__') && <span className="text-gray-900 text-[10px] font-bold">✓</span>}
+                      {selected.includes('__other__') && <span className="text-white text-[10px] font-bold">✓</span>}
                     </span>
                   ) : (
                     <span
                       onClick={() => !submitted && toggleOption(qIdx, '__other__', false)}
                       className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 cursor-pointer ${
-                        selected.includes('__other__') ? 'border-violet-400 bg-violet-400' : 'border-gray-500'
+                        selected.includes('__other__') ? 'border-info bg-info' : 'border-on-surface-muted'
                       }`}
                     />
                   )}
                   <input
                     type="text"
                     disabled={submitted}
-                    placeholder="Other..."
+                    placeholder={t('questionCard.otherPlaceholder')}
                     value={otherTexts[qIdx] ?? ''}
                     onChange={(e) => setOtherText(qIdx, e.target.value)}
-                    className="flex-1 bg-transparent text-sm text-gray-300 placeholder-gray-500 outline-none"
+                    className="flex-1 bg-transparent text-sm text-on-surface-secondary placeholder-on-surface-muted outline-none"
                   />
                 </div>
               </div>
@@ -193,18 +192,18 @@ export default function QuestionCard({ requestId, questions, onSubmit }: Props) 
             onClick={handleSubmit}
             className={`px-4 py-1.5 rounded text-xs font-medium transition-colors ${
               allAnswered
-                ? 'bg-violet-600 hover:bg-violet-500 text-white'
-                : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                ? 'bg-info hover:bg-info/80 text-white'
+                : 'bg-surface-elevated text-on-surface-muted cursor-not-allowed'
             }`}
           >
-            Confirm
+            {t('common.confirm')}
           </button>
         </div>
       )}
 
       {submitted && (
-        <div className="text-xs text-gray-500 mt-2 text-right italic">
-          Answers submitted
+        <div className="text-xs text-on-surface-muted mt-2 text-right italic">
+          {t('questionCard.answersSubmitted')}
         </div>
       )}
     </div>
