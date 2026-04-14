@@ -17,7 +17,7 @@ import type {
   AdapterCommand,
   AdapterPermissionMeta,
 } from '../types.js';
-import { detectInstalledBinary } from './command-utils.js';
+import { detectInstalledBinary, findExecutable } from './command-utils.js';
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -92,6 +92,55 @@ const CODEX_COMMANDS: AdapterCommand[] = [
   { name: '/approval', description: 'Change approval mode', args: '<mode>' },
 ];
 
+type CodexLaunchSpec = {
+  command: string;
+  args: string[];
+  shell?: boolean;
+};
+
+function quoteWindowsShellArg(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function resolveCodexCliPath(cliPath?: string): string {
+  if (cliPath) return cliPath;
+
+  const resolved = process.platform === 'win32'
+    ? (findExecutable('codex') ?? findExecutable('codex.cmd') ?? findExecutable('codex.exe'))
+    : findExecutable('codex');
+
+  if (!resolved) {
+    throw new Error('Codex CLI not found. Install `@openai/codex` and ensure `codex` is on your PATH.');
+  }
+
+  return resolved;
+}
+
+function buildCodexLaunchSpec(cliPath?: string): CodexLaunchSpec {
+  const resolvedCliPath = resolveCodexCliPath(cliPath);
+  const args = ['app-server', '--listen', 'stdio://'];
+
+  if (process.platform !== 'win32') {
+    return { command: resolvedCliPath, args };
+  }
+
+  const lowerPath = resolvedCliPath.toLowerCase();
+  if (lowerPath.endsWith('.exe') || lowerPath.endsWith('.com')) {
+    return { command: resolvedCliPath, args };
+  }
+
+  if (lowerPath.endsWith('.cmd') || lowerPath.endsWith('.bat')) {
+    const command = [resolvedCliPath, ...args]
+      .map(quoteWindowsShellArg)
+      .join(' ');
+    return { command, args: [], shell: true };
+  }
+
+  throw new Error(
+    `Codex CLI resolved to "${resolvedCliPath}", but Windows requires a .cmd or .exe launcher. Reinstall Codex CLI or add codex.cmd to PATH.`,
+  );
+}
+
 class CodexCliProcess extends EventEmitter implements AgentProcess {
   sessionId: string;
   readonly adapter = 'codex-cli';
@@ -115,11 +164,13 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
   private originalInstructions: string | undefined;
   /** Set to true when kill() is called intentionally, so exit handler respects it */
   private killedIntentionally = false;
+  private readonly cliPath?: string;
 
-  constructor(sessionId: string, options: SpawnOptions) {
+  constructor(sessionId: string, options: SpawnOptions, cliPath?: string) {
     super();
     this.sessionId = sessionId;
     this.spawnOptions = options;
+    this.cliPath = cliPath;
   }
 
   /**
@@ -131,10 +182,12 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
     if (this.spawnOptions.apiKey) {
       env.OPENAI_API_KEY = this.spawnOptions.apiKey;
     }
-    this.childProcess = spawnChild('codex', ['app-server', '--listen', 'stdio://'], {
+    const launchSpec = buildCodexLaunchSpec(this.cliPath);
+    this.childProcess = spawnChild(launchSpec.command, launchSpec.args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: this.spawnOptions.cwd,
       env,
+      shell: launchSpec.shell,
     });
 
     this.childProcess.stdout!.on('data', (chunk: Buffer) => {
@@ -150,6 +203,9 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
       // If kill() was called intentionally, keep 'stopped' status regardless of exit code
       if (!this.killedIntentionally) {
         this.status = code === 0 ? 'stopped' : 'error';
+        if (code !== 0) {
+          this.rejectPendingRpc(new Error(`Codex CLI exited with code ${code}`));
+        }
       }
       this.childProcess = null;
       this.emit('exit', code ?? 1);
@@ -158,8 +214,11 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
     this.childProcess.on('error', (err) => {
       console.error('[Codex] Process error:', err);
       this.status = 'error';
-      this.emit('error', err);
+      this.rejectPendingRpc(err);
+      this.emitErrorSafely(err);
     });
+
+    await this.waitForStartup();
 
     // === Initialization handshake ===
     try {
@@ -262,7 +321,7 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
         error: err instanceof Error ? err.message : String(err),
       }, { isError: true }));
       this.status = 'error';
-      this.emit('error', err instanceof Error ? err : new Error(String(err)));
+      this.emitErrorSafely(err instanceof Error ? err : new Error(String(err)));
     }
   }
 
@@ -392,6 +451,50 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
 
   private nextId(): number {
     return ++this.rpcId;
+  }
+
+  private rejectPendingRpc(err: Error): void {
+    for (const pending of this.pendingRpc.values()) {
+      pending.reject(err);
+    }
+    this.pendingRpc.clear();
+  }
+
+  private emitErrorSafely(err: Error): void {
+    if (this.listenerCount('error') > 0) {
+      this.emit('error', err);
+    }
+  }
+
+  private async waitForStartup(): Promise<void> {
+    if (!this.childProcess) return;
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve();
+      }, 500);
+
+      const onError = (err: Error) => {
+        clearTimeout(timer);
+        cleanup();
+        reject(err);
+      };
+
+      const onExit = (code: number | null) => {
+        clearTimeout(timer);
+        cleanup();
+        reject(new Error(`Codex CLI exited immediately with code ${code}`));
+      };
+
+      const cleanup = () => {
+        this.childProcess?.removeListener('error', onError);
+        this.childProcess?.removeListener('exit', onExit);
+      };
+
+      this.childProcess!.on('error', onError);
+      this.childProcess!.on('exit', onExit);
+    });
   }
 
   private sendRpc(method: string, params: unknown): Promise<unknown> {
@@ -879,22 +982,36 @@ export class CodexCliAdapter implements AgentAdapter {
       readonly: 'read-only sandbox + plan',
     },
   };
+  private detectedCliPath?: string;
 
   async detect(): Promise<{ installed: boolean; version?: string; path?: string }> {
     const detected = detectInstalledBinary('codex');
     if (!detected) return { installed: false };
+    this.detectedCliPath = detected.path;
     return { installed: true, version: detected.version, path: detected.path };
+  }
+
+  private ensureCliPath(): string {
+    if (this.detectedCliPath && existsSync(this.detectedCliPath)) {
+      return this.detectedCliPath;
+    }
+
+    const resolved = resolveCodexCliPath();
+    this.detectedCliPath = resolved;
+    return resolved;
   }
 
   async spawn(options: SpawnOptions): Promise<AgentProcess> {
     const sessionId = randomUUID();
-    console.log('[CodexAdapter] Spawning session:', sessionId);
-    const proc = new CodexCliProcess(sessionId, options);
+    const cliPath = this.ensureCliPath();
+    console.log('[CodexAdapter] Spawning session:', sessionId, 'cli:', cliPath);
+    const proc = new CodexCliProcess(sessionId, options, cliPath);
     await proc.init('spawn');
     return proc;
   }
 
   async resume(sessionId: string, options?: ResumeOptions): Promise<AgentProcess> {
+    const cliPath = this.ensureCliPath();
     const proc = new CodexCliProcess(sessionId, {
       cwd: options?.cwd ?? process.cwd(),
       systemPrompt: options?.systemPrompt,
@@ -902,7 +1019,7 @@ export class CodexCliAdapter implements AgentAdapter {
       mcpServers: options?.mcpServers,
       apiKey: options?.apiKey,
       permissionMode: options?.permissionMode,
-    });
+    }, cliPath);
     await proc.init('resume', sessionId);
     // NOTE: Do NOT send prompt here. The caller must wire events first,
     // then call sendMessage() to avoid race condition.
