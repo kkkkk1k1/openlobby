@@ -8,6 +8,7 @@
   },
   "files": [
     "dist/bin.js",
+    "dist/server-main.js",
     "dist/mcp-server.js",
     "web/",
     "README.md"

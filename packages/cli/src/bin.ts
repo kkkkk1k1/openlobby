@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
+import { fork, execSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createServer } from '@openlobby/server';
+import { accessSync, constants } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const VERSION = '0.5.3'; // replaced by esbuild define
 
-function parseArgs(args: string[]) {
+function parseArgs(args: string[]): { port: number; mcpApiPort?: number } {
   let port = 3001;
   let mcpApiPort: number | undefined;
   for (let i = 0; i < args.length; i++) {
@@ -37,22 +39,75 @@ Environment Variables:
       process.exit(0);
     }
     if (args[i] === '--version' || args[i] === '-v') {
-      // Version is replaced at build time
-      console.log('0.5.3');
+      console.log(VERSION);
       process.exit(0);
     }
   }
   return { port, mcpApiPort };
 }
 
-async function main() {
-  const { port, mcpApiPort } = parseArgs(process.argv.slice(2));
-  const webRoot = join(__dirname, '..', 'web');
-
-  await createServer({ port, mcpApiPort, webRoot });
+function spawnServer(port: number, mcpApiPort: number | undefined): ReturnType<typeof fork> {
+  const serverEntry = join(__dirname, 'server-main.js');
+  const env: Record<string, string> = {
+    ...process.env as Record<string, string>,
+    OPENLOBBY_PORT: String(port),
+    OPENLOBBY_VERSION: VERSION,
+  };
+  if (mcpApiPort !== undefined) {
+    env.OPENLOBBY_MCP_PORT = String(mcpApiPort);
+  }
+  return fork(serverEntry, [], { env, stdio: 'inherit' });
 }
 
-main().catch((err) => {
-  console.error('Failed to start OpenLobby:', err);
-  process.exit(1);
-});
+async function performUpdate(): Promise<boolean> {
+  try {
+    const globalPrefix = execSync('npm prefix -g', { encoding: 'utf-8' }).trim();
+    accessSync(globalPrefix, constants.W_OK);
+  } catch {
+    console.error('[Wrapper] Cannot write to global npm prefix. Try: sudo npm install -g openlobby@latest');
+    return false;
+  }
+  try {
+    console.log('[Wrapper] Updating openlobby...');
+    execSync('npm install -g openlobby@latest', { stdio: 'inherit' });
+    console.log('[Wrapper] Update complete.');
+    return true;
+  } catch (err) {
+    console.error('[Wrapper] Update failed:', err);
+    return false;
+  }
+}
+
+const { port, mcpApiPort } = parseArgs(process.argv.slice(2));
+let child = spawnServer(port, mcpApiPort);
+
+function setupChildListeners(proc: ReturnType<typeof fork>) {
+  proc.on('message', async (msg: any) => {
+    if (msg?.type === 'update-and-restart') {
+      const success = await performUpdate();
+      if (success) {
+        console.log('[Wrapper] Restarting server...');
+        proc.kill('SIGTERM');
+        child = spawnServer(port, mcpApiPort);
+        setupChildListeners(child);
+      } else {
+        proc.send({ type: 'update-failed', error: 'npm install failed or permission denied' });
+      }
+    }
+  });
+
+  proc.on('exit', (code) => {
+    if (code !== null && code !== 0) {
+      console.error(`[Wrapper] Server exited with code ${code}. Not restarting.`);
+      process.exit(code);
+    }
+    // Exit code 0 means graceful shutdown
+    process.exit(0);
+  });
+}
+
+setupChildListeners(child);
+
+// Forward SIGINT/SIGTERM to child
+process.on('SIGINT', () => { child.kill('SIGINT'); });
+process.on('SIGTERM', () => { child.kill('SIGTERM'); });
