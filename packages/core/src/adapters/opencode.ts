@@ -15,6 +15,7 @@ import type {
   AdapterCommand,
   AdapterPermissionMeta,
 } from '../types.js';
+import { detectInstalledBinary } from './command-utils.js';
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -510,13 +511,9 @@ export class OpenCodeAdapter implements AgentAdapter {
   }
 
   async detect(): Promise<{ installed: boolean; version?: string; path?: string }> {
-    try {
-      const version = execSync('opencode --version', { encoding: 'utf-8' }).trim();
-      const cliPath = execSync('which opencode', { encoding: 'utf-8' }).trim();
-      return { installed: true, version, path: cliPath };
-    } catch {
-      return { installed: false };
-    }
+    const detected = detectInstalledBinary('opencode');
+    if (!detected) return { installed: false };
+    return { installed: true, version: detected.version, path: detected.path };
   }
 
   async spawn(options: SpawnOptions): Promise<AgentProcess> {

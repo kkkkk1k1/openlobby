@@ -17,6 +17,7 @@ import type {
   AdapterCommand,
   AdapterPermissionMeta,
 } from '../types.js';
+import { detectInstalledBinary } from './command-utils.js';
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -880,13 +881,9 @@ export class CodexCliAdapter implements AgentAdapter {
   };
 
   async detect(): Promise<{ installed: boolean; version?: string; path?: string }> {
-    try {
-      const version = execSync('codex --version', { encoding: 'utf-8' }).trim();
-      const cliPath = execSync('which codex', { encoding: 'utf-8' }).trim();
-      return { installed: true, version, path: cliPath };
-    } catch {
-      return { installed: false };
-    }
+    const detected = detectInstalledBinary('codex');
+    if (!detected) return { installed: false };
+    return { installed: true, version: detected.version, path: detected.path };
   }
 
   async spawn(options: SpawnOptions): Promise<AgentProcess> {

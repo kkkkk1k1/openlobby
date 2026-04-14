@@ -14,6 +14,7 @@ function expandTilde(p: string): string {
 
 export interface McpApiHandle {
   setChannelRouter(router: ChannelRouterImpl): void;
+  close(): Promise<void>;
 }
 
 /**
@@ -301,6 +302,9 @@ export async function startMcpApi(
   return {
     setChannelRouter(router: ChannelRouterImpl) {
       channelRouter = router;
+    },
+    async close() {
+      await app.close();
     },
   };
 }

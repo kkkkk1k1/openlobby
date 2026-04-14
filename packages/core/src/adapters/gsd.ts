@@ -17,6 +17,7 @@ import type {
   AdapterCommand,
   AdapterPermissionMeta,
 } from '../types.js';
+import { detectInstalledBinary } from './command-utils.js';
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -73,14 +74,10 @@ let cachedBin: { bin: string; version: string; path: string } | null = null;
 function detectGsdBin(): { bin: string; version: string; path: string } | null {
   if (cachedBin) return cachedBin;
   for (const bin of GSD_BIN_CANDIDATES) {
-    try {
-      const version = execSync(`${bin} --version`, { encoding: 'utf-8', timeout: 5000 }).trim();
-      const binPath = execSync(`which ${bin}`, { encoding: 'utf-8', timeout: 5000 }).trim();
-      cachedBin = { bin, version, path: binPath };
-      return cachedBin;
-    } catch {
-      continue;
-    }
+    const detected = detectInstalledBinary(bin);
+    if (!detected) continue;
+    cachedBin = { bin, version: detected.version, path: detected.path };
+    return cachedBin;
   }
   return null;
 }

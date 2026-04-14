@@ -11,9 +11,16 @@ import MessageList from './components/MessageList';
 import MessageInput from './components/MessageInput';
 import TerminalView from './components/TerminalView';
 
+const DEV_BACKEND_HOST =
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? '127.0.0.1'
+    : window.location.hostname;
+
 const WS_URL =
   import.meta.env.VITE_WS_URL ??
-  `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+  (import.meta.env.DEV
+    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${DEV_BACKEND_HOST}:3001/ws`
+    : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`);
 
 export default function App() {
   useWebSocketInit(WS_URL);

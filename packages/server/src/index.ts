@@ -26,6 +26,8 @@ export interface ServerOptions {
   version?: string;
 }
 
+declare const __OPENLOBBY_NO_AUTORUN__: boolean | undefined;
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export async function createServer(options: ServerOptions = {}) {
@@ -245,6 +247,29 @@ export async function createServer(options: ServerOptions = {}) {
   await app.listen({ port, host: '0.0.0.0' });
   console.log(`OpenLobby server running on http://localhost:${port}`);
 
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`Shutting down OpenLobby server (${signal})...`);
+    try {
+      ptyManager.dispose();
+      await Promise.allSettled([
+        app.close(),
+        mcpApi.close(),
+      ]);
+    } finally {
+      process.exit(0);
+    }
+  };
+
+  process.once('SIGINT', () => {
+    void shutdown('SIGINT');
+  });
+  process.once('SIGTERM', () => {
+    void shutdown('SIGTERM');
+  });
+
   // Notify wrapper that server is ready
   if (process.send) {
     process.send({ type: 'ready' });
@@ -260,11 +285,19 @@ export async function createServer(options: ServerOptions = {}) {
   }};
 }
 
-// Run directly if this is the entry point
-const isDirectRun = process.argv[1] && (
-  process.argv[1].endsWith('/server/dist/index.js') ||
-  process.argv[1].endsWith('/server/src/index.ts')
-);
+// Run directly if this file is the entry point.
+// `tsx` sets `import.meta.main`, while plain Node runs still work via argv fallback.
+const isDirectRun = (() => {
+  if (typeof __OPENLOBBY_NO_AUTORUN__ !== 'undefined' && __OPENLOBBY_NO_AUTORUN__) {
+    return false;
+  }
+  const meta = import.meta as ImportMeta & { main?: boolean };
+  if (typeof meta.main === 'boolean') return meta.main;
+  return !!process.argv[1] && (
+    process.argv[1].endsWith('/server/dist/index.js') ||
+    process.argv[1].endsWith('/server/src/index.ts')
+  );
+})();
 if (isDirectRun) {
   createServer().catch((err) => {
     console.error('Failed to start server:', err);

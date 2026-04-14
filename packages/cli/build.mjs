@@ -63,6 +63,7 @@ await build({
   banner: commonBanner,
   define: {
     VERSION: JSON.stringify(VERSION),
+    __OPENLOBBY_NO_AUTORUN__: 'true',
   },
   sourcemap: true,
   minify: false,
