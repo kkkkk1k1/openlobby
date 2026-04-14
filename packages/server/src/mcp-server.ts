@@ -308,6 +308,39 @@ async function main() {
     },
   );
 
+  // --- Tool: lobby_check_update ---
+  server.tool(
+    'lobby_check_update',
+    'Check if a newer version of OpenLobby is available on npm',
+    {},
+    async () => {
+      const result = await apiCall('GET', '/api/version-check');
+      return textResult(result);
+    },
+  );
+
+  // --- Tool: lobby_update_server ---
+  server.tool(
+    'lobby_update_server',
+    'Update OpenLobby to the latest version and auto-restart the server. For npx users, shows a hint instead.',
+    {},
+    async () => {
+      const check = (await apiCall('GET', '/api/version-check')) as {
+        hasUpdate?: boolean;
+        currentVersion?: string;
+        latestVersion?: string | null;
+      };
+      if (!check.hasUpdate) {
+        return textResult({
+          status: 'up-to-date',
+          message: `Already on the latest version (${check.currentVersion}).`,
+        });
+      }
+      const result = await apiCall('POST', '/api/trigger-update');
+      return textResult(result);
+    },
+  );
+
   // Start stdio transport
   const transport = new StdioServerTransport();
   await server.connect(transport);

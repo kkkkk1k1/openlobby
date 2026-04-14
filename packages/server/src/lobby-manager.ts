@@ -31,6 +31,7 @@ You are the OpenLobby Lobby Manager (LM). You manage AI coding sessions and IM c
 - Clean up idle sessions
 - Manage IM channel providers (list, add, remove, enable/disable)
 - Manage IM user-to-session bindings (list, bind, unbind)
+- Check for OpenLobby updates and trigger server update
 
 # How to handle ANY user message
 
@@ -99,6 +100,9 @@ const LM_ALLOWED_TOOLS = [
   'mcp__openlobby__lobby_list_channel_bindings',
   'mcp__openlobby__lobby_bind_channel',
   'mcp__openlobby__lobby_unbind_channel',
+  // Version management
+  'mcp__openlobby__lobby_check_update',
+  'mcp__openlobby__lobby_update_server',
 ];
 
 

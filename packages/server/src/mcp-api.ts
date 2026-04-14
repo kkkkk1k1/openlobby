@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { SessionManager } from './session-manager.js';
 import type { ChannelRouterImpl } from './channel-router.js';
+import type { VersionChecker } from './version-checker.js';
 
 /** Expand leading `~` or `~/` to the user's home directory */
 function expandTilde(p: string): string {
@@ -22,6 +23,8 @@ export interface McpApiHandle {
 export async function startMcpApi(
   sessionManager: SessionManager,
   port: number,
+  versionChecker?: VersionChecker | null,
+  triggerUpdate?: () => { status: string; message?: string },
 ): Promise<McpApiHandle> {
   const app = Fastify({ logger: false });
 
@@ -279,6 +282,18 @@ export async function startMcpApi(
       }
     },
   );
+
+  // Version check for MCP tools
+  app.get('/api/version-check', async () => {
+    if (!versionChecker) return { error: 'Version checker not available' };
+    return versionChecker.check();
+  });
+
+  // Trigger update for MCP tools
+  app.post('/api/trigger-update', async () => {
+    if (!triggerUpdate) return { error: 'Update not available' };
+    return triggerUpdate();
+  });
 
   await app.listen({ port, host: '127.0.0.1' });
   console.log(`MCP internal API running on http://127.0.0.1:${port}`);
