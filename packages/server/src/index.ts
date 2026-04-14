@@ -41,7 +41,7 @@ export async function createServer(options: ServerOptions = {}) {
   const db = initDb();
 
   // Version checker for update detection
-  const versionChecker = new VersionChecker(db, options.version ?? '0.0.0');
+  const versionChecker = new VersionChecker(options.version ?? '0.0.0');
   let updateInProgress = false;
 
   // Initialize adapters: built-in + plugins from DB
