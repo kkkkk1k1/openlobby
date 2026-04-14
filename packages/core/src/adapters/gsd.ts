@@ -714,6 +714,17 @@ export class GsdAdapter implements AgentAdapter {
     return GSD_COMMANDS;
   }
 
+  async resolveSessionCwd(sessionId: string): Promise<string | undefined> {
+    const filePath = this.findSessionJsonl(sessionId);
+    if (!filePath) return undefined;
+    try {
+      const meta = this.extractSessionMeta(filePath);
+      return meta?.cwd || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   // ── Private helpers ──
 
   private findSessionJsonl(sessionId: string): string | null {

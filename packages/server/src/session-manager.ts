@@ -580,6 +580,7 @@ export class SessionManager {
     if (options.model) session.model = options.model;
     if (options.permissionMode) session.permissionMode = options.permissionMode;
     if (options.messageMode) session.messageMode = options.messageMode;
+    if (options.cwd) session.cwd = options.cwd;
     this.persistSession(session);
     this.broadcastSessionUpdate(session);
   }
@@ -611,6 +612,41 @@ export class SessionManager {
     this.broadcastSessionUpdate(session);
   }
 
+  /**
+   * Correct the cwd for a session by querying the adapter's CLI-native session data.
+   * If the authoritative cwd differs from the stored one, update both DB and the
+   * returned value. This prevents stale cwd from historical versions causing resume failures.
+   */
+  private async correctSessionCwd(
+    adapterName: string,
+    sessionId: string,
+    storedCwd: string,
+  ): Promise<string> {
+    const adapter = this.adapters.get(adapterName);
+    if (!adapter?.resolveSessionCwd) return storedCwd;
+
+    try {
+      const realCwd = await adapter.resolveSessionCwd(sessionId);
+      if (realCwd && realCwd !== storedCwd) {
+        console.log(
+          `[SessionManager] cwd corrected for session ${sessionId}: "${storedCwd}" → "${realCwd}"`,
+        );
+        // Update DB so future lookups get the correct value
+        if (this.db) {
+          const rows = getAllSessions(this.db);
+          const row = rows.find((r) => r.id === sessionId);
+          if (row) {
+            upsertSession(this.db, { ...row, cwd: realCwd });
+          }
+        }
+        return realCwd;
+      }
+    } catch (err) {
+      console.warn(`[SessionManager] cwd correction failed for ${sessionId}:`, err);
+    }
+    return storedCwd;
+  }
+
   /** Resume a session from SQLite that has no live process */
   private async lazyResume(
     sessionId: string,
@@ -625,11 +661,15 @@ export class SessionManager {
     if (!adapter) return null;
 
     console.log(`[SessionManager] Lazy-resuming session ${sessionId}`);
+
+    // Correct cwd from CLI-native session data before resuming
+    const correctedCwd = await this.correctSessionCwd(row.adapter_name, sessionId, row.cwd);
+
     const sessionPermission = (row.permission_mode as PermissionMode | null) ?? undefined;
     const effectivePermission = this.resolvePermissionMode(row.adapter_name, sessionPermission);
     const process = await adapter.resume(sessionId, {
       prompt,
-      cwd: row.cwd,
+      cwd: correctedCwd,
       permissionMode: effectivePermission,
     });
 
@@ -641,7 +681,7 @@ export class SessionManager {
       status: 'running',
       createdAt: row.created_at,
       lastActiveAt: Date.now(),
-      cwd: row.cwd,
+      cwd: correctedCwd,
       process,
       messageCount: 0,
       model: row.model ?? undefined,
@@ -986,10 +1026,13 @@ export class SessionManager {
         const adapter = this.adapters.get(row.adapter_name);
         if (!adapter) throw new Error(`Adapter "${row.adapter_name}" not found`);
 
+        // Correct cwd from CLI-native session data before rebuilding
+        const correctedCwd = await this.correctSessionCwd(row.adapter_name, sessionId, row.cwd);
+
         const effectivePermission = this.resolvePermissionMode(row.adapter_name,
           (row.permission_mode as PermissionMode | null) ?? undefined);
         const newProcess = await adapter.spawn({
-          cwd: row.cwd,
+          cwd: correctedCwd,
           model: row.model ?? undefined,
           permissionMode: effectivePermission,
         });
@@ -1002,7 +1045,7 @@ export class SessionManager {
           status: 'running',
           createdAt: row.created_at,
           lastActiveAt: Date.now(),
-          cwd: row.cwd,
+          cwd: correctedCwd,
           process: newProcess,
           messageCount: 0,
           model: row.model ?? undefined,
@@ -1045,6 +1088,12 @@ export class SessionManager {
 
     const adapter = this.adapters.get(session.adapterName);
     if (!adapter) throw new Error(`Adapter "${session.adapterName}" not found`);
+
+    // Correct cwd from CLI-native session data before rebuilding
+    const correctedCwd = await this.correctSessionCwd(session.adapterName, sessionId, session.cwd);
+    if (correctedCwd !== session.cwd) {
+      session.cwd = correctedCwd;
+    }
 
     // Read current spawn options from the process
     const currentOpts = (session.process as unknown as { spawnOptions?: SpawnOptions })?.spawnOptions;

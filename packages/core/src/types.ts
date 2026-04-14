@@ -138,6 +138,12 @@ export interface AgentAdapter {
   discoverSessions(cwd?: string): Promise<SessionSummary[]>;
   getResumeCommand(sessionId: string): string;
   listCommands?(): Promise<AdapterCommand[]>;
+  /**
+   * Resolve the authoritative cwd for a session from CLI-native session data
+   * (e.g. JSONL metadata or session database).
+   * Returns undefined if the session is not found or cwd cannot be determined.
+   */
+  resolveSessionCwd?(sessionId: string): Promise<string | undefined>;
 }
 
 /** Plugin module contract for external adapter packages */

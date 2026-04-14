@@ -1093,4 +1093,33 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     // This fallback is used before any session has run.
     return FALLBACK_COMMANDS;
   }
+
+  async resolveSessionCwd(sessionId: string): Promise<string | undefined> {
+    const storagePath = this.getSessionStoragePath();
+    if (!existsSync(storagePath)) return undefined;
+
+    let projectDirs: string[];
+    try {
+      projectDirs = readdirSync(storagePath);
+    } catch {
+      return undefined;
+    }
+
+    for (const dirName of projectDirs) {
+      const filePath = join(storagePath, dirName, `${sessionId}.jsonl`);
+      if (!existsSync(filePath)) continue;
+
+      try {
+        const meta = await this.extractSessionMeta(filePath, sessionId);
+        if (meta.cwd) return meta.cwd;
+      } catch {
+        // skip unreadable files
+      }
+
+      // Fallback to decoded project dir name
+      return this.decodeProjectDir(dirName);
+    }
+
+    return undefined;
+  }
 }

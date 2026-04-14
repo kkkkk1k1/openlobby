@@ -793,6 +793,26 @@ export class OpenCodeAdapter implements AgentAdapter {
     return FALLBACK_COMMANDS;
   }
 
+  async resolveSessionCwd(sessionId: string): Promise<string | undefined> {
+    const dbPath = this.getDbPath();
+    if (!existsSync(dbPath)) return undefined;
+
+    try {
+      const safeId = sessionId.replace(/'/g, "''");
+      const query = `SELECT directory FROM session WHERE id = '${safeId}' LIMIT 1;`;
+      const output = execSync(`sqlite3 -json "${dbPath}" "${query}"`, {
+        encoding: 'utf-8',
+        timeout: 5000,
+      }).trim();
+
+      if (!output) return undefined;
+      const rows = JSON.parse(output) as Array<{ directory: string }>;
+      return rows[0]?.directory || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private fetchCommands(client: any, proc: OpenCodeProcess): void {
     client.command
