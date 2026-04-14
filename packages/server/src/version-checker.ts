@@ -1,8 +1,4 @@
-import type Database from 'better-sqlite3';
-import { getServerConfig, setServerConfig } from './db.js';
-
 const NPM_REGISTRY_URL = 'https://registry.npmjs.org/openlobby/latest';
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const FETCH_TIMEOUT_MS = 5000;
 
 export interface VersionCheckResult {
@@ -31,12 +27,10 @@ function detectInstallMode(): 'global' | 'npx' {
 }
 
 export class VersionChecker {
-  private db: Database.Database;
   private currentVersion: string;
   private installMode: 'global' | 'npx';
 
-  constructor(db: Database.Database, currentVersion: string) {
-    this.db = db;
+  constructor(currentVersion: string) {
     this.currentVersion = currentVersion;
     this.installMode = detectInstallMode();
   }
@@ -49,21 +43,6 @@ export class VersionChecker {
       installMode: this.installMode,
     };
 
-    const lastCheck = getServerConfig(this.db, 'last_version_check');
-    const cachedVersion = getServerConfig(this.db, 'latest_remote_version');
-
-    if (lastCheck && cachedVersion) {
-      const elapsed = Date.now() - parseInt(lastCheck, 10);
-      if (elapsed < CACHE_TTL_MS) {
-        return {
-          currentVersion: this.currentVersion,
-          latestVersion: cachedVersion,
-          hasUpdate: isNewer(cachedVersion, this.currentVersion),
-          installMode: this.installMode,
-        };
-      }
-    }
-
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -74,11 +53,6 @@ export class VersionChecker {
 
       const data = (await res.json()) as { version?: string };
       const latestVersion = data.version ?? null;
-
-      if (latestVersion) {
-        setServerConfig(this.db, 'last_version_check', String(Date.now()));
-        setServerConfig(this.db, 'latest_remote_version', latestVersion);
-      }
 
       return {
         currentVersion: this.currentVersion,
