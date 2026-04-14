@@ -17,11 +17,13 @@ import { LobbyManager } from './lobby-manager.js';
 import { ChannelRouterImpl } from './channel-router.js';
 import { createProvider } from './channels/index.js';
 import { PtyManager } from './pty-manager.js';
+import { VersionChecker } from './version-checker.js';
 
 export interface ServerOptions {
   port?: number;
   mcpApiPort?: number;
   webRoot?: string;
+  version?: string;
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -37,6 +39,10 @@ export async function createServer(options: ServerOptions = {}) {
   // Initialize SQLite — sessions from previous runs remain with their last status
   // They will be lazily resumed when the user sends a message
   const db = initDb();
+
+  // Version checker for update detection
+  const versionChecker = new VersionChecker(db, options.version ?? '0.0.0');
+  let updateInProgress = false;
 
   // Initialize adapters: built-in + plugins from DB
   const allAdapters = new Map<string, AgentAdapter>();
@@ -137,6 +143,52 @@ export async function createServer(options: ServerOptions = {}) {
     return logs;
   });
 
+  // Version check endpoint (polled by frontend)
+  app.get('/api/version', async () => {
+    return versionChecker.check();
+  });
+
+  // Update trigger endpoint
+  app.post('/api/update', async (_request, reply) => {
+    if (updateInProgress) {
+      return reply.send({ status: 'already-updating' });
+    }
+
+    const installMode = versionChecker.getInstallMode();
+    if (installMode === 'npx') {
+      return reply.send({
+        status: 'npx-hint',
+        message: 'You are running via npx. The latest version will be used automatically next time you run npx openlobby.',
+      });
+    }
+
+    // Check write permission to global node_modules
+    try {
+      const { execSync } = await import('node:child_process');
+      const globalPrefix = execSync('npm prefix -g', { encoding: 'utf-8' }).trim();
+      const { accessSync, constants } = await import('node:fs');
+      accessSync(globalPrefix, constants.W_OK);
+    } catch {
+      return reply.send({
+        status: 'error',
+        message: 'Permission denied. Please run: sudo npm install -g openlobby@latest',
+      });
+    }
+
+    updateInProgress = true;
+    if (process.send) {
+      process.send({ type: 'update-and-restart' });
+    }
+    return reply.send({ status: 'updating' });
+  });
+
+  // Listen for update failure from wrapper
+  process.on('message', (msg: any) => {
+    if (msg?.type === 'update-failed') {
+      updateInProgress = false;
+    }
+  });
+
   // File upload and serving
   await registerUploadRoute(app);
 
@@ -186,7 +238,19 @@ export async function createServer(options: ServerOptions = {}) {
   await app.listen({ port, host: '0.0.0.0' });
   console.log(`OpenLobby server running on http://localhost:${port}`);
 
-  return app;
+  // Notify wrapper that server is ready
+  if (process.send) {
+    process.send({ type: 'ready' });
+  }
+
+  return { app, versionChecker, triggerUpdate: () => {
+    if (updateInProgress) return { status: 'already-updating' as const };
+    const installMode = versionChecker.getInstallMode();
+    if (installMode === 'npx') return { status: 'npx-hint' as const, message: 'Running via npx. Latest version used automatically next time.' };
+    updateInProgress = true;
+    if (process.send) process.send({ type: 'update-and-restart' });
+    return { status: 'updating' as const };
+  }};
 }
 
 // Run directly if this is the entry point
