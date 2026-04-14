@@ -33,11 +33,15 @@ export class PtyManager {
 
     // Spawn an interactive login shell, then feed the resume command as input.
     // This lets the user see the shell prompt and the resume process in real time.
-    const shell = process.env.SHELL || '/bin/bash';
+    const isWindows = process.platform === 'win32';
+    const shell = isWindows
+      ? (process.env.COMSPEC || 'cmd.exe')
+      : (process.env.SHELL || '/bin/bash');
+    const shellArgs = isWindows ? [] : ['-l'];
 
     let ptyProcess: pty.IPty;
     try {
-      ptyProcess = pty.spawn(shell, ['-l'], {
+      ptyProcess = pty.spawn(shell, shellArgs, {
         name: 'xterm-256color',
         cols,
         rows,

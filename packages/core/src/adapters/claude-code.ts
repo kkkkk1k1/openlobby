@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import { execSync, spawn as cpSpawn } from 'node:child_process';
+import { spawn as cpSpawn } from 'node:child_process';
 import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join, basename } from 'node:path';
@@ -16,6 +16,7 @@ import type {
   AdapterCommand,
   AdapterPermissionMeta,
 } from '../types.js';
+import { detectInstalledBinary, findExecutable } from './command-utils.js';
 
 /** Claude Code-specific spawn options (extends shared SpawnOptions) */
 export interface ClaudeCodeSpawnOptions extends SpawnOptions {
@@ -722,18 +723,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     version?: string;
     path?: string;
   }> {
-    try {
-      const version = execSync('claude --version', {
-        encoding: 'utf-8',
-      }).trim();
-      const cliPath = execSync('which claude', {
-        encoding: 'utf-8',
-      }).trim();
-      this.detectedCliPath = cliPath;
-      return { installed: true, version, path: cliPath };
-    } catch {
-      return { installed: false };
-    }
+    const detected = detectInstalledBinary('claude');
+    if (!detected) return { installed: false };
+    this.detectedCliPath = detected.path;
+    return { installed: true, version: detected.version, path: detected.path };
   }
 
 
@@ -746,15 +739,11 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       return this.detectedCliPath;
     }
     // Cached path is stale — try to re-detect
-    try {
-      const cliPath = execSync('which claude', { encoding: 'utf-8' }).trim();
-      if (cliPath && existsSync(cliPath)) {
-        console.log(`[ClaudeCodeAdapter] Re-detected claude at: ${cliPath}`);
-        this.detectedCliPath = cliPath;
-        return cliPath;
-      }
-    } catch {
-      // claude not found in PATH
+    const cliPath = findExecutable('claude');
+    if (cliPath && existsSync(cliPath)) {
+      console.log(`[ClaudeCodeAdapter] Re-detected claude at: ${cliPath}`);
+      this.detectedCliPath = cliPath;
+      return cliPath;
     }
     console.warn('[ClaudeCodeAdapter] Claude CLI not found, falling back to SDK bundled executable');
     this.detectedCliPath = undefined;
@@ -790,7 +779,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
   getSessionStoragePath(): string {
     const home = process.env.HOME ?? process.env.USERPROFILE ?? '~';
-    return `${home}/.claude/projects`;
+    return join(home, '.claude', 'projects');
   }
 
   async readSessionHistory(sessionId: string): Promise<LobbyMessage[]> {

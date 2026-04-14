@@ -243,7 +243,7 @@ export class SessionManager {
   ): string {
     const adapter = this.adapters.get(adapterName);
     const cmd = adapter ? adapter.getResumeCommand(sessionId) : `claude --resume ${sessionId}`;
-    return `cd ${cwd} && ${cmd}`;
+    return buildShellResumeCommand(cwd, cmd);
   }
 
   resolvePermissionMode(session: ManagedSession): PermissionMode;
@@ -1266,4 +1266,15 @@ export class SessionManager {
     if (!this.db) return;
     updateSessionStatus(this.db, session.id, session.status, session.lastActiveAt);
   }
+}
+
+function buildShellResumeCommand(cwd: string, command: string): string {
+  if (process.platform === 'win32') {
+    return `cd /d "${cwd}" && ${command}`;
+  }
+  return `cd ${quotePosixShell(cwd)} && ${command}`;
+}
+
+function quotePosixShell(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
