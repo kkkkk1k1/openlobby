@@ -36,6 +36,11 @@ interface ServerMessage {
  */
 let globalWs: WebSocket | null = null;
 let globalWsUrl: string | null = null;
+let expectingRestart = false;
+
+export function setExpectingRestart(val: boolean) {
+  expectingRestart = val;
+}
 
 function ensureConnection(url: string) {
   if (globalWs && globalWsUrl === url && globalWs.readyState <= 1) {
@@ -49,6 +54,11 @@ function ensureConnection(url: string) {
   ws.onopen = () => {
     console.log('[WS] Connected');
     useLobbyStore.getState().setConnected(true);
+    if (expectingRestart) {
+      expectingRestart = false;
+      location.reload();
+      return;
+    }
     wsSend({ type: 'session.list' });
     wsSend({ type: 'config.get', key: 'defaultAdapter' });
     wsSend({ type: 'config.get', key: 'defaultMessageMode' });
