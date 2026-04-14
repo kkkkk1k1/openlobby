@@ -8,6 +8,8 @@ import type { Theme } from '../hooks/useTheme';
 import DiscoverDialog from './DiscoverDialog';
 import ChannelManagePanel from './ChannelManagePanel';
 import GlobalSettingsDialog from './GlobalSettingsDialog';
+import { useVersionCheck } from '../hooks/useVersionCheck';
+import { UpdateDialog } from './UpdateDialog';
 
 const APP_VERSION = __APP_VERSION__;
 
@@ -186,6 +188,8 @@ export default function Sidebar() {
   const setShowDiscoverDialog = useLobbyStore((s) => s.setShowDiscoverDialog);
   const lmAvailable = useLobbyStore((s) => s.lmAvailable);
   const lmSessionId = useLobbyStore((s) => s.lmSessionId);
+  const versionInfo = useVersionCheck();
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showChannelPanel, setShowChannelPanel] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const channelProviders = useLobbyStore((s) => s.channelProviders);
@@ -331,6 +335,15 @@ export default function Sidebar() {
               }`}
             />
             <span className="text-xs text-on-surface-muted">v{APP_VERSION}</span>
+            {versionInfo.hasUpdate && versionInfo.latest && (
+              <button
+                onClick={() => setShowUpdateDialog(true)}
+                className="text-xs text-primary hover:text-primary-hover transition-colors"
+                title={`v${versionInfo.latest} available`}
+              >
+                ↑
+              </button>
+            )}
           </div>
         </div>
       </aside>
@@ -343,6 +356,13 @@ export default function Sidebar() {
       )}
       {showSettingsDialog && (
         <GlobalSettingsDialog onClose={() => setShowSettingsDialog(false)} />
+      )}
+      {showUpdateDialog && versionInfo.latest && (
+        <UpdateDialog
+          latestVersion={versionInfo.latest}
+          installMode={versionInfo.installMode}
+          onClose={() => setShowUpdateDialog(false)}
+        />
       )}
     </>
   );
