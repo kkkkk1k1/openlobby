@@ -504,7 +504,7 @@ export class SessionManager {
       process,
       messageCount: 0,
       model: options.model,
-      permissionMode: options.permissionMode,
+      permissionMode: effectivePermission,
       origin,
       messageMode: (options as any).messageMode ?? undefined,
       pinned: false,
@@ -538,7 +538,8 @@ export class SessionManager {
     const adapter = this.adapters.get(adapterName);
     if (!adapter) throw new Error(`Adapter "${adapterName}" not found`);
 
-    const process = await adapter.resume(sessionId, options);
+    const effectivePermission = this.resolvePermissionMode(adapterName, options.permissionMode);
+    const process = await adapter.resume(sessionId, { ...options, permissionMode: effectivePermission });
     const session: ManagedSession = {
       id: process.sessionId,
       previousIds: [],
@@ -551,7 +552,7 @@ export class SessionManager {
       process,
       messageCount: 0,
       model: options.model,
-      permissionMode: options.permissionMode,
+      permissionMode: effectivePermission,
       origin,
       messageMode: (options as any).messageMode ?? undefined,
       pinned: false,
@@ -685,7 +686,7 @@ export class SessionManager {
       process,
       messageCount: 0,
       model: row.model ?? undefined,
-      permissionMode: sessionPermission ?? undefined,
+      permissionMode: effectivePermission,
       origin: row.origin as 'lobby' | 'cli' | 'lobby-manager',
       messageMode: (row.message_mode as MessageMode) ?? undefined,
       pinned: row.pinned === 1,
