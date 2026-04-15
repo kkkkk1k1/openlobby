@@ -46,6 +46,8 @@ Environment Variables:
   return { port, mcpApiPort };
 }
 
+import { isUnderProcessManager } from './process-utils.js';
+
 function spawnServer(port: number, mcpApiPort: number | undefined): ReturnType<typeof fork> {
   const serverEntry = join(__dirname, 'server-main.js');
   const env: Record<string, string> = {
@@ -82,28 +84,37 @@ const { port, mcpApiPort } = parseArgs(process.argv.slice(2));
 let child = spawnServer(port, mcpApiPort);
 
 function setupChildListeners(proc: ReturnType<typeof fork>) {
-  proc.on('message', async (msg: any) => {
-    if (msg?.type === 'update-and-restart') {
-      const success = await performUpdate();
-      if (success) {
-        console.log('[Wrapper] Restarting server...');
-        proc.kill('SIGTERM');
-        child = spawnServer(port, mcpApiPort);
-        setupChildListeners(child);
-      } else {
-        proc.send({ type: 'update-failed', error: 'npm install failed or permission denied' });
-      }
-    }
-  });
-
-  proc.on('exit', (code) => {
+  const exitHandler = (code: number | null) => {
     if (code !== null && code !== 0) {
       console.error(`[Wrapper] Server exited with code ${code}. Not restarting.`);
       process.exit(code);
     }
     // Exit code 0 means graceful shutdown
     process.exit(0);
+  };
+
+  proc.on('message', async (msg: any) => {
+    if (msg?.type === 'update-and-restart') {
+      const success = await performUpdate();
+      if (success) {
+        proc.removeListener('exit', exitHandler);
+        proc.kill('SIGTERM');
+
+        if (isUnderProcessManager()) {
+          console.log('[Wrapper] Update complete. Exiting for process manager to restart...');
+          proc.on('exit', () => process.exit(0));
+        } else {
+          console.log('[Wrapper] Restarting server...');
+          child = spawnServer(port, mcpApiPort);
+          setupChildListeners(child);
+        }
+      } else {
+        proc.send({ type: 'update-failed', error: 'npm install failed or permission denied' });
+      }
+    }
   });
+
+  proc.on('exit', exitHandler);
 }
 
 setupChildListeners(child);

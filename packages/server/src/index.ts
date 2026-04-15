@@ -1,3 +1,4 @@
+import cluster from 'node:cluster';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,6 +30,15 @@ export interface ServerOptions {
 declare const __OPENLOBBY_NO_AUTORUN__: boolean | undefined;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/** Send an IPC message to the wrapper process, ignoring errors if the channel is already closed. */
+function safeSend(msg: unknown): void {
+  try {
+    process.send?.(msg);
+  } catch {
+    // IPC channel may already be closed during restart — safe to ignore
+  }
+}
 
 export async function createServer(options: ServerOptions = {}) {
   const port = options.port ?? parseInt(process.env.PORT ?? '3001', 10);
@@ -93,7 +103,7 @@ export async function createServer(options: ServerOptions = {}) {
     const installMode = versionChecker.getInstallMode();
     if (installMode === 'npx') return { status: 'npx-hint', message: 'Running via npx. Latest version used automatically next time.' };
     updateInProgress = true;
-    if (process.send) process.send({ type: 'update-and-restart' });
+    safeSend({ type: 'update-and-restart' });
     return { status: 'updating' };
   });
 
@@ -163,6 +173,14 @@ export async function createServer(options: ServerOptions = {}) {
       return reply.send({ status: 'already-updating' });
     }
 
+    // pm2 cluster mode: IPC channel goes to pm2 master, not our wrapper
+    if (cluster.isWorker) {
+      return reply.send({
+        status: 'error',
+        message: 'Running in cluster mode. Please use your process manager (e.g. pm2 restart) to apply updates.',
+      });
+    }
+
     const installMode = versionChecker.getInstallMode();
     if (installMode === 'npx') {
       return reply.send({
@@ -185,9 +203,7 @@ export async function createServer(options: ServerOptions = {}) {
     }
 
     updateInProgress = true;
-    if (process.send) {
-      process.send({ type: 'update-and-restart' });
-    }
+    safeSend({ type: 'update-and-restart' });
     return reply.send({ status: 'updating' });
   });
 
@@ -271,16 +287,14 @@ export async function createServer(options: ServerOptions = {}) {
   });
 
   // Notify wrapper that server is ready
-  if (process.send) {
-    process.send({ type: 'ready' });
-  }
+  safeSend({ type: 'ready' });
 
   return { app, versionChecker, triggerUpdate: () => {
     if (updateInProgress) return { status: 'already-updating' as const };
     const installMode = versionChecker.getInstallMode();
     if (installMode === 'npx') return { status: 'npx-hint' as const, message: 'Running via npx. Latest version used automatically next time.' };
     updateInProgress = true;
-    if (process.send) process.send({ type: 'update-and-restart' });
+    safeSend({ type: 'update-and-restart' });
     return { status: 'updating' as const };
   }};
 }
