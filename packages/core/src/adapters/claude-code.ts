@@ -453,6 +453,21 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
       console.log('[ClaudeCode] Query completed');
       this.emit('idle');
     } catch (err) {
+      // AbortError is expected when the user (or session rebuild) kills the
+      // process.  Treat it as a graceful stop, not a real error.  This avoids
+      // crashing the server when `removeAllListeners()` has already stripped
+      // the 'error' listener before the async abort propagates here.
+      const isAbort =
+        (err instanceof Error && err.name === 'AbortError') ||
+        this.abortController.signal.aborted;
+
+      if (isAbort) {
+        console.log('[ClaudeCode] Query aborted (user or rebuild)');
+        this.status = 'stopped';
+        this.emit('idle');
+        return;
+      }
+
       const stderrOutput = this.stderrChunks.join('').trim();
       console.error('[ClaudeCode] === QUERY FAILED ===');
       console.error('[ClaudeCode] error:', err);
@@ -606,14 +621,25 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
   sendMessage(content: string): void {
     console.log('[ClaudeCode] sendMessage:', content.slice(0, 100));
     this.abortController = new AbortController();
+
+    // Safety: catch unhandled rejections from the fire-and-forget promise.
+    // runQuery already handles errors internally, but if an exception escapes
+    // (e.g., listeners removed before async abort propagates) we must not let
+    // it become an unhandled rejection that crashes the process.
+    const safeRun = (p: Promise<void>) => {
+      p.catch((err) => {
+        console.error('[ClaudeCode] Unhandled rejection in runQuery:', err);
+      });
+    };
+
     if (this.realSessionId) {
       // We have a real session — resume it
       console.log('[ClaudeCode] Resuming session:', this.realSessionId);
-      this.runQueryWithResumeFallback(content, this.realSessionId);
+      safeRun(this.runQueryWithResumeFallback(content, this.realSessionId));
     } else {
       // First message — start a fresh query (no resume)
       console.log('[ClaudeCode] Starting fresh query');
-      this.runQuery(content);
+      safeRun(this.runQuery(content));
     }
   }
 
