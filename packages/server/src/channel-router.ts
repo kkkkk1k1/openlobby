@@ -756,6 +756,8 @@ export class ChannelRouterImpl implements ChannelRouter {
 
     const sessionName = this.getSessionDisplayName(sessionId);
     const identityKey = bindingRow.identity_key;
+    const isTelegramTidy =
+      provider.channelName === 'telegram' && messageMode === 'msg-tidy';
 
     switch (msg.type) {
       // ── stream_delta: accumulate into <think> buffer ──
@@ -790,6 +792,21 @@ export class ChannelRouterImpl implements ChannelRouter {
       case 'tool_use': {
         const toolName = String(msg.meta?.toolName ?? 'unknown');
         const raw = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2);
+
+        if (isTelegramTidy) {
+          if (!this.streamStates.has(identityKey)) {
+            const state: StreamState = { buffer: '', intermediateCount: 0, lastFlushAt: 0, flushTimer: null };
+            this.streamStates.set(identityKey, state);
+          }
+
+          const state = this.streamStates.get(identityKey)!;
+          const thinkText = `<think>\n【${sessionName}】正在处理... 🔧 ${toolName}\n──\n📄 ${raw.slice(0, 160)}\n</think>`;
+          provider.sendMessage({ identity, text: thinkText, kind: 'typing' })
+            .catch((err) => console.error('[ChannelRouter] telegram tidy think error:', err));
+          state.intermediateCount++;
+          state.lastFlushAt = Date.now();
+          break;
+        }
 
         // msg-tidy: aggregate tool calls, show think with stats + last tool preview
         if (messageMode === 'msg-tidy') {
@@ -875,6 +892,18 @@ export class ChannelRouterImpl implements ChannelRouter {
         const text = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
         if (!text.trim()) break;
 
+        if (isTelegramTidy) {
+          const state = this.streamStates.get(identityKey) ?? {
+            buffer: '',
+            intermediateCount: 0,
+            lastFlushAt: 0,
+            flushTimer: null,
+          };
+          state.buffer = text;
+          this.streamStates.set(identityKey, state);
+          break;
+        }
+
         // msg-tidy: send final tool stats before the reply (must be sequential to avoid race)
         const agg = this.toolAggregates.get(identityKey);
         if (messageMode === 'msg-tidy' && agg && agg.totalCalls > 0) {
@@ -924,6 +953,17 @@ export class ChannelRouterImpl implements ChannelRouter {
 
         const state = this.streamStates.get(identityKey);
         const bufferedText = state?.buffer ?? '';
+
+        if (isTelegramTidy) {
+          if (bufferedText.trim()) {
+            const formatted = formatAssistant(sessionName, bufferedText);
+            this.finishStream(identityKey, provider, identity, formatted);
+          } else {
+            if (state?.flushTimer) clearTimeout(state.flushTimer);
+            this.streamStates.delete(identityKey);
+          }
+          break;
+        }
 
         // If msg-tidy has pending stats, send them first (chained to avoid race)
         if (tidyAgg && tidyAgg.totalCalls > 0 && messageMode === 'msg-tidy') {

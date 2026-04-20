@@ -56,6 +56,8 @@ export class TelegramBotProvider implements ChannelProvider {
   private approvalMessageIds = new Map<string, { chatId: string; messageId: number }>();
   /** Think message IDs per chat for editable typing messages */
   private thinkMessages = new Map<string, number>();
+  /** Per-chat serialization chain for think message updates */
+  private thinkUpdateChains = new Map<string, Promise<void>>();
   /**
    * Callback data shortener: Telegram limits callback_data to 64 bytes.
    * We map short keys (cb_xxxx, 7 chars) → original callbackData strings.
@@ -608,33 +610,24 @@ export class TelegramBotProvider implements ChannelProvider {
 
   /** Send or edit a think message for live typing display */
   private async sendOrEditThinkMessage(chatId: string, text: string): Promise<void> {
-    const existing = this.thinkMessages.get(chatId);
+    await this.enqueueThinkUpdate(chatId, async () => {
+      const existing = this.thinkMessages.get(chatId);
 
-    // Wrap in italic to visually distinguish from normal messages
-    const displayText = `\u{1F4AD} _${text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&')}_`;
+      // Wrap in italic to visually distinguish from normal messages
+      const displayText = `\u{1F4AD} _${text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&')}_`;
 
-    if (existing) {
-      // Edit existing think message
-      try {
-        await this.api.editMessageText(chatId, existing, displayText, {
-          parse_mode: 'MarkdownV2',
-        });
-      } catch {
-        // Edit might fail (e.g., content unchanged) — try sending new
+      if (existing) {
         try {
-          const sent = await this.api.sendMessage(chatId, displayText, {
+          await this.api.editMessageText(chatId, existing, displayText, {
             parse_mode: 'MarkdownV2',
-            disable_notification: true,
           });
-          this.thinkMessages.set(chatId, sent.message_id);
         } catch (err) {
-          this.log('error', 'sendOrEditThinkMessage error:', err);
+          this.log('warn', 'edit think message failed, keeping current message:', err);
         }
+        return;
       }
-    } else {
-      // Send new think message
+
       try {
-        // Also keep typing action alive
         await this.sendTypingAction(chatId);
         const sent = await this.api.sendMessage(chatId, displayText, {
           parse_mode: 'MarkdownV2',
@@ -643,23 +636,40 @@ export class TelegramBotProvider implements ChannelProvider {
         this.thinkMessages.set(chatId, sent.message_id);
       } catch (err) {
         this.log('error', 'sendThinkMessage error:', err);
-        // Fallback to typing action
         await this.sendTypingAction(chatId);
       }
-    }
+    });
   }
 
   /** Delete the think message when real reply arrives */
   private async deleteThinkMessage(chatId: string): Promise<void> {
-    const msgId = this.thinkMessages.get(chatId);
-    if (msgId) {
+    await this.enqueueThinkUpdate(chatId, async () => {
+      const msgId = this.thinkMessages.get(chatId);
+      if (!msgId) return;
+
       this.thinkMessages.delete(chatId);
       try {
         await this.api.deleteMessage(chatId, msgId);
       } catch {
         // Best effort — message might already be deleted
       }
-    }
+    });
+  }
+
+  private enqueueThinkUpdate(chatId: string, op: () => Promise<void>): Promise<void> {
+    const key = String(chatId);
+    const previous = this.thinkUpdateChains.get(key) ?? Promise.resolve();
+    const current = previous
+      .catch(() => undefined)
+      .then(op);
+
+    const tracked = current.finally(() => {
+      if (this.thinkUpdateChains.get(key) === tracked) {
+        this.thinkUpdateChains.delete(key);
+      }
+    });
+    this.thinkUpdateChains.set(key, tracked);
+    return tracked;
   }
 
   private stopTypingTimer(chatId: string | number): void {
