@@ -16,7 +16,9 @@ describe('command-utils', () => {
   it('uses where.exe on Windows when resolving executables', () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-    mockExecSync.mockReturnValue('C:\\Program Files\\nodejs\\codex.cmd\r\n' as never);
+    mockExecSync.mockReturnValue(
+      'C:\\Program Files\\nodejs\\codex\r\nC:\\Program Files\\nodejs\\codex.cmd\r\n' as never,
+    );
 
     const result = findExecutable('codex');
 
@@ -28,12 +30,27 @@ describe('command-utils', () => {
     );
   });
 
+  it('preserves PATH order when multiple Windows launchers are returned', () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+    mockExecSync.mockReturnValue(
+      'C:\\Users\\seaso\\bin\\codex.cmd\r\nC:\\Program Files\\Codex\\codex.exe\r\n' as never,
+    );
+
+    const result = findExecutable('codex');
+
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+    expect(result).toBe('C:\\Users\\seaso\\bin\\codex.cmd');
+  });
+
   it('returns version and path for installed Windows npm shims', () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
     mockExecSync
       .mockReturnValueOnce('codex-cli 0.120.0\n' as never)
-      .mockReturnValueOnce('C:\\Program Files\\nodejs\\codex.cmd\r\n' as never);
+      .mockReturnValueOnce(
+        'C:\\Program Files\\nodejs\\codex\r\nC:\\Program Files\\nodejs\\codex.cmd\r\n' as never,
+      );
 
     const result = detectInstalledBinary('codex');
 

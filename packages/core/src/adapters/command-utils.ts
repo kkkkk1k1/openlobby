@@ -12,16 +12,38 @@ function runCommand(command: string): string | undefined {
   }
 }
 
+function pickPreferredExecutable(matches: string[]): string | undefined {
+  const normalized = matches
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (normalized.length === 0) return undefined;
+
+  if (process.platform !== 'win32') {
+    return normalized[0];
+  }
+
+  for (const candidate of normalized) {
+    const lowerCandidate = candidate.toLowerCase();
+    if (
+      lowerCandidate.endsWith('.exe')
+      || lowerCandidate.endsWith('.cmd')
+      || lowerCandidate.endsWith('.bat')
+      || lowerCandidate.endsWith('.com')
+    ) {
+      return candidate;
+    }
+  }
+
+  return normalized[0];
+}
+
 export function findExecutable(binary: string): string | undefined {
   const lookupCommand = process.platform === 'win32'
     ? `where.exe ${binary}`
     : `which ${binary}`;
   const output = runCommand(lookupCommand);
   if (!output) return undefined;
-  return output
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find(Boolean);
+  return pickPreferredExecutable(output.split(/\r?\n/));
 }
 
 export function detectInstalledBinary(
