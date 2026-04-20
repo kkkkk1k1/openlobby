@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.5.7 (2026-04-20)
+
+### Bug Fixes
+- Fix Windows Codex CLI process launch for npm shim installs (#6, 42d599e)
+- Tighten Telegram msg-tidy output to a single evolving message (#7, fa189f9)
+- Handle AbortError gracefully to prevent server crash on session kill (d7574a6)
+
+### Other Changes
+- Harden Windows Codex launcher handling tests (38dd514)
+
 ## v0.5.6 (2026-04-15)
 
 ### Features

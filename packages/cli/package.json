@@ -1,6 +1,6 @@
 {
   "name": "openlobby",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description": "OpenLobby — Unified session manager for AI coding agents (Claude Code, Codex CLI) with an IM-style web UI",
   "type": "module",
   "bin": {

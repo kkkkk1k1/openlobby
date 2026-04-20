@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { accessSync, constants } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const VERSION = '0.5.6'; // replaced by esbuild define
+const VERSION = '0.5.7'; // replaced by esbuild define
 
 function parseArgs(args: string[]): { port: number; mcpApiPort?: number } {
   let port = 3001;
