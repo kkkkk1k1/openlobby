@@ -30,6 +30,19 @@ describe('command-utils', () => {
     );
   });
 
+  it('preserves PATH order when multiple Windows launchers are returned', () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+    mockExecSync.mockReturnValue(
+      'C:\\Users\\seaso\\bin\\codex.cmd\r\nC:\\Program Files\\Codex\\codex.exe\r\n' as never,
+    );
+
+    const result = findExecutable('codex');
+
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+    expect(result).toBe('C:\\Users\\seaso\\bin\\codex.cmd');
+  });
+
   it('returns version and path for installed Windows npm shims', () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });

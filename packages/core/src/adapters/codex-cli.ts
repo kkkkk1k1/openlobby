@@ -92,22 +92,23 @@ const CODEX_COMMANDS: AdapterCommand[] = [
   { name: '/approval', description: 'Change approval mode', args: '<mode>' },
 ];
 
-type CodexLaunchSpec = {
+const EARLY_EXIT_DETECTION_MS = 500;
+
+export type CodexLaunchSpec = {
   command: string;
   args: string[];
   shell?: boolean;
 };
 
 function quoteWindowsShellArg(value: string): string {
+  // `shell: true` uses cmd.exe on Windows, which expects embedded quotes doubled.
   return `"${value.replace(/"/g, '""')}"`;
 }
 
 function resolveCodexCliPath(cliPath?: string): string {
   if (cliPath) return cliPath;
 
-  const resolved = process.platform === 'win32'
-    ? (findExecutable('codex') ?? findExecutable('codex.cmd') ?? findExecutable('codex.exe'))
-    : findExecutable('codex');
+  const resolved = findExecutable('codex');
 
   if (!resolved) {
     throw new Error('Codex CLI not found. Install `@openai/codex` and ensure `codex` is on your PATH.');
@@ -116,7 +117,7 @@ function resolveCodexCliPath(cliPath?: string): string {
   return resolved;
 }
 
-function buildCodexLaunchSpec(cliPath?: string): CodexLaunchSpec {
+export function buildCodexLaunchSpec(cliPath?: string): CodexLaunchSpec {
   const resolvedCliPath = resolveCodexCliPath(cliPath);
   const args = ['app-server', '--listen', 'stdio://'];
 
@@ -218,7 +219,7 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
       this.emitErrorSafely(err);
     });
 
-    await this.waitForStartup();
+    await this.waitForEarlyExit();
 
     // === Initialization handshake ===
     try {
@@ -466,14 +467,20 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
     }
   }
 
-  private async waitForStartup(): Promise<void> {
-    if (!this.childProcess) return;
+  /**
+   * Watch a short window for immediate spawn failures before sending the first RPC.
+   * This is crash detection, not a readiness signal from the child process.
+   */
+  private async waitForEarlyExit(): Promise<void> {
+    if (!this.childProcess || this.childProcess.exitCode !== null || this.childProcess.killed) {
+      return;
+    }
 
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         cleanup();
         resolve();
-      }, 500);
+      }, EARLY_EXIT_DETECTION_MS);
 
       const onError = (err: Error) => {
         clearTimeout(timer);

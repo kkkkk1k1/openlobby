@@ -22,11 +22,15 @@ function pickPreferredExecutable(matches: string[]): string | undefined {
     return normalized[0];
   }
 
-  const preferredExtensions = ['.exe', '.cmd', '.bat', '.com'];
-  for (const ext of preferredExtensions) {
-    const match = normalized.find((candidate) => candidate.toLowerCase().endsWith(ext));
-    if (match) {
-      return match;
+  for (const candidate of normalized) {
+    const lowerCandidate = candidate.toLowerCase();
+    if (
+      lowerCandidate.endsWith('.exe')
+      || lowerCandidate.endsWith('.cmd')
+      || lowerCandidate.endsWith('.bat')
+      || lowerCandidate.endsWith('.com')
+    ) {
+      return candidate;
     }
   }
 
