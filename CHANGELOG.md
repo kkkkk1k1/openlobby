@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.5.8 (2026-04-21)
+
+### Bug Fixes
+- Unwrap Windows `.cmd` shim to underlying `cli.js` in the Claude Code adapter, avoiding `spawn EINVAL` on Node 24 without reintroducing MCP-config JSON corruption (b3ee830)
+
 ## v0.5.7 (2026-04-20)
 
 ### Bug Fixes
