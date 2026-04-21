@@ -1,9 +1,9 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { spawn as cpSpawn } from 'node:child_process';
-import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
-import { join, basename } from 'node:path';
+import { join, basename, win32 as pathWin32 } from 'node:path';
 import { homedir } from 'node:os';
 import type {
   AgentAdapter,
@@ -27,6 +27,102 @@ export interface ClaudeCodeSpawnOptions extends SpawnOptions {
    */
   allowedTools?: string[];
 }
+
+/**
+ * Extract the JavaScript entrypoint from a Windows npm `cmd-shim` file.
+ *
+ * npm/pnpm generate `<bin>.cmd` launchers whose final invocation line references
+ * the underlying `cli.js` relative to the shim directory, e.g.
+ *
+ *     "%_prog%"  "%~dp0\node_modules\@anthropic-ai\claude-code\cli.js" %*
+ *
+ * We look for the first quoted `"%~dp0…\<something>.js"` (or the `%dp0%`
+ * variant) token and resolve it against the shim's directory. Returns
+ * `undefined` when the shim cannot be read, does not match, or the resolved
+ * target does not exist.
+ */
+function parseWindowsCliShim(shimPath: string): string | undefined {
+  let content: string;
+  try {
+    content = readFileSync(shimPath, 'utf-8');
+  } catch {
+    return undefined;
+  }
+
+  // Accepts both `%~dp0` and `%dp0%` token variants used by different shim
+  // generators. Captures the path segment (including the leading backslash)
+  // up to the .js / .mjs / .cjs extension.
+  const match = content.match(/"%(?:~dp0|dp0%)([^"]+\.(?:js|mjs|cjs))"/i);
+  if (!match) return undefined;
+
+  const shimDir = pathWin32.dirname(shimPath);
+  const relativeSegment = match[1].replace(/^\\+/, '');
+  const resolved = pathWin32.join(shimDir, relativeSegment);
+
+  return existsSync(resolved) ? resolved : undefined;
+}
+
+/**
+ * Decide which executable + entrypoint the Claude Code SDK should spawn.
+ *
+ * Background: Node ≥ 18.20.2 refuses to spawn `.cmd`/`.bat` files without
+ * `shell: true` (CVE-2024-27980). OpenLobby's custom `spawnClaudeCodeProcess`
+ * cannot enable `shell: true` because cmd.exe then mangles the JSON passed via
+ * `--mcp-config`. Instead we resolve `.cmd` shims to their underlying `cli.js`
+ * and tell the SDK to run it with the current `node` — the SDK does
+ * `spawn("node", [cli.js, ...])` which works cross-platform without a shell.
+ *
+ * Returns the fragment to spread into the SDK's query options:
+ *   - `pathToClaudeCodeExecutable` — absolute path to the CLI entrypoint
+ *   - `executable` — set to `process.execPath` whenever the entrypoint is a
+ *     JS file, so the SDK does not rely on a PATH `node` lookup
+ *
+ * Exported for unit testing.
+ */
+export function resolveClaudeExecutable(
+  cliPath: string | undefined,
+): { pathToClaudeCodeExecutable?: string; executable?: string } {
+  if (!cliPath) return {};
+
+  if (process.platform !== 'win32') {
+    return { pathToClaudeCodeExecutable: cliPath };
+  }
+
+  const lower = cliPath.toLowerCase();
+
+  // Native Windows binaries spawn fine without shell — hand to the SDK as-is.
+  if (lower.endsWith('.exe') || lower.endsWith('.com')) {
+    return { pathToClaudeCodeExecutable: cliPath };
+  }
+
+  // JS entrypoints: SDK will wrap them with `executable` (default: "node"),
+  // but we pin to the current node so we don't rely on PATH resolution.
+  if (lower.endsWith('.js') || lower.endsWith('.mjs') || lower.endsWith('.cjs')) {
+    return {
+      pathToClaudeCodeExecutable: cliPath,
+      executable: process.execPath,
+    };
+  }
+
+  // npm/pnpm cmd shim: unwrap to the underlying cli.js so we can bypass cmd.exe
+  // entirely (and the CVE-2024-27980 spawn-hardening that blocks it).
+  if (lower.endsWith('.cmd') || lower.endsWith('.bat')) {
+    const resolvedJs = parseWindowsCliShim(cliPath);
+    if (resolvedJs) {
+      return {
+        pathToClaudeCodeExecutable: resolvedJs,
+        executable: process.execPath,
+      };
+    }
+    // Parse failure: keep today's behaviour as a no-worse fallback so the
+    // EINVAL error still surfaces with a clear command path attached.
+    return { pathToClaudeCodeExecutable: cliPath };
+  }
+
+  // Unknown extension (.ps1, no extension, etc.) — pass through.
+  return { pathToClaudeCodeExecutable: cliPath };
+}
+
 
 function makeLobbyMessage(
   sessionId: string,
@@ -288,10 +384,19 @@ class ClaudeCodeProcess extends EventEmitter implements AgentProcess {
       // Reset stderr buffer for this query
       this.stderrChunks = [];
 
+      // Resolve the CLI path for the current platform before handing it to
+      // the SDK. On Windows this unwraps `.cmd` shims to the underlying
+      // `cli.js` (avoiding Node's CVE-2024-27980 spawn hardening that blocks
+      // `.cmd` files without shell:true — which we cannot enable because it
+      // corrupts the --mcp-config JSON argument).
+      const executableResolution = resolveClaudeExecutable(this.claudeCliPath);
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const queryOpts: any = {
-        // Point SDK to the real Claude CLI binary (avoids bundled-path mismatch)
-        pathToClaudeCodeExecutable: this.claudeCliPath,
+        // Point SDK to the real Claude CLI binary (avoids bundled-path mismatch).
+        // May include `executable: process.execPath` when resolution picked a
+        // JS entrypoint, so the SDK spawns the current Node instead of PATH `node`.
+        ...executableResolution,
         // Custom spawn to capture stderr and handle native binaries.
         // IMPORTANT: shell must be false — shell:true corrupts JSON arguments
         // (e.g. --mcp-config) by interpreting {}, ", : as shell metacharacters,
