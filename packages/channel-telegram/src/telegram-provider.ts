@@ -398,8 +398,12 @@ export class TelegramBotProvider implements ChannelProvider {
           senderId: replied.from ? String(replied.from.id) : undefined,
           timestamp: replied.date * 1000,
         };
-        // Prepend quote context for the agent
-        text = `> ${repliedText.split('\n')[0]}\n\n${text}`;
+        // Prepend quote context for the agent.
+        // Apply the blockquote prefix line-by-line so multi-line quoted
+        // messages are preserved in full (instead of dropping everything
+        // after the first newline).
+        const quotedBlock = repliedText.split('\n').map((line) => `> ${line}`).join('\n');
+        text = `${quotedBlock}\n\n${text}`;
       }
     }
 
