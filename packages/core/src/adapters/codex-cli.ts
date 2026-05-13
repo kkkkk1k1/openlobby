@@ -143,7 +143,7 @@ export function buildCodexLaunchSpec(cliPath?: string): CodexLaunchSpec {
   );
 }
 
-class CodexCliProcess extends EventEmitter implements AgentProcess {
+export class CodexCliProcess extends EventEmitter implements AgentProcess {
   sessionId: string;
   readonly adapter = 'codex-cli';
   status: AgentProcess['status'] = 'idle';
@@ -758,6 +758,39 @@ class CodexCliProcess extends EventEmitter implements AgentProcess {
         }, { isError: true }));
         this.emit('idle');
         break;
+
+      case 'error':
+      case 'error/notification': {
+        // Top-level error notification from Codex CLI (e.g. upstream relay
+        // returns `serverOverloaded`, auth failure, network error, etc.).
+        // Surface it as a user-visible error instead of swallowing it in the
+        // "Unknown notification" default branch.
+        const errObj = (params.error ?? {}) as {
+          message?: string;
+          codexErrorInfo?: string;
+          additionalDetails?: unknown;
+        };
+        const message = errObj.message ?? (typeof params.error === 'string' ? params.error : 'Codex error');
+        const willRetry = params.willRetry === true;
+        const summary = willRetry ? `${message} (retrying…)` : message;
+
+        this.emit('message', makeLobbyMessage(this.sessionId, 'result', {
+          subtype: 'error',
+          error: summary,
+          code: errObj.codexErrorInfo,
+          willRetry,
+          details: errObj.additionalDetails ?? null,
+        }, { isError: true }));
+
+        // If Codex will not retry, the turn is dead — release the session so
+        // the user can prompt again. If it will retry, stay in 'running' and
+        // wait for the eventual turn.completed / turn.failed.
+        if (!willRetry) {
+          this.status = 'idle';
+          this.emit('idle');
+        }
+        break;
+      }
 
       case 'item.started':
       case 'item/started': {
