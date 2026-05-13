@@ -125,10 +125,7 @@ export class WeComBotProvider implements ChannelProvider {
       });
 
       // Detect quote/reply message
-      const quote = parseQuoteMessage(body);
-      const messageText = quote
-        ? `> ${quote.text}\n\n${body.text.content}`
-        : body.text.content;
+      const { text: messageText, quote } = buildQuotedInbound(body, body.text.content);
 
       router.handleInbound({
         externalMessageId: body.msgid,
@@ -141,7 +138,7 @@ export class WeComBotProvider implements ChannelProvider {
         },
         text: messageText,
         timestamp: (body.create_time ?? Date.now() / 1000) * 1000,
-        quote: quote ?? undefined,
+        quote,
         raw: frame,
       }).catch((err) => this.log('error', 'handleInbound error:', err));
     });
@@ -160,6 +157,11 @@ export class WeComBotProvider implements ChannelProvider {
         streamId: generateReqId('stream'),
       });
 
+      const { text: voiceText, quote: voiceQuote } = buildQuotedInbound(
+        body,
+        body.voice.content || '[语音消息]',
+      );
+
       router.handleInbound({
         externalMessageId: body.msgid,
         identity: {
@@ -169,8 +171,9 @@ export class WeComBotProvider implements ChannelProvider {
           peerKind: mapWeComChatTypeToPeerKind(body.chattype),
           chatId: body.chatid,
         },
-        text: body.voice.content || '[语音消息]',
+        text: voiceText,
         timestamp: (body.create_time ?? Date.now() / 1000) * 1000,
+        quote: voiceQuote,
         raw: frame,
       }).catch((err) => this.log('error', 'voice handleInbound error:', err));
     });
@@ -200,6 +203,8 @@ export class WeComBotProvider implements ChannelProvider {
           : [{ type: 'image', url: imageUrl }];
       }
 
+      const { text: imageText, quote: imageQuote } = buildQuotedInbound(body, '[图片]');
+
       router.handleInbound({
         externalMessageId: body.msgid,
         identity: {
@@ -209,9 +214,10 @@ export class WeComBotProvider implements ChannelProvider {
           peerKind: mapWeComChatTypeToPeerKind(body.chattype),
           chatId: body.chatid,
         },
-        text: '[图片]',
+        text: imageText,
         timestamp: (body.create_time ?? Date.now() / 1000) * 1000,
         attachments,
+        quote: imageQuote,
         raw: frame,
       }).catch((err) => this.log('error', 'image handleInbound error:', err));
     });
@@ -246,6 +252,11 @@ export class WeComBotProvider implements ChannelProvider {
         attachments.push({ type: a.type, url: a.url, filename: a.filename });
       }
 
+      const { text: mixedText, quote: mixedQuote } = buildQuotedInbound(
+        body,
+        text || '[图文消息]',
+      );
+
       router.handleInbound({
         externalMessageId: body.msgid,
         identity: {
@@ -255,9 +266,10 @@ export class WeComBotProvider implements ChannelProvider {
           peerKind: mapWeComChatTypeToPeerKind(body.chattype),
           chatId: body.chatid,
         },
-        text: text || '[图文消息]',
+        text: mixedText,
         timestamp: (body.create_time ?? Date.now() / 1000) * 1000,
         attachments: attachments.length > 0 ? attachments : undefined,
+        quote: mixedQuote,
         raw: frame,
       }).catch((err) => this.log('error', 'mixed handleInbound error:', err));
     });
@@ -634,20 +646,63 @@ function parseMixedContent(body: Record<string, any>): {
   return { text: textParts.join('\n'), rawAttachments };
 }
 
-/** Extract quote/reply context from a WeCom text message */
+/** Extract quote/reply context from a WeCom message of any supported type */
 function parseQuoteMessage(body: Record<string, any>): {
   text: string;
   senderId?: string;
   timestamp?: number;
 } | null {
-  // WeCom quote messages include a quote field in the body
-  const quote = body.text?.quote ?? body.quote;
+  // WeCom may attach the quote context on the body itself or nested under
+  // the per-msgtype payload, depending on the source message kind.
+  const quote =
+    body.quote
+    ?? body.text?.quote
+    ?? body.voice?.quote
+    ?? body.image?.quote
+    ?? body.mixed?.quote;
   if (!quote) return null;
 
+  const text = typeof quote === 'string'
+    ? quote
+    : (quote.content ?? quote.text ?? '');
+  // Skip empty quotes — they convey no context and would just produce a
+  // stray "> \n\n" prefix on the inbound text.
+  if (!text) return null;
+
   return {
-    text: typeof quote === 'string' ? quote : (quote.content ?? quote.text ?? ''),
-    senderId: quote.from?.userid,
-    timestamp: quote.create_time ? quote.create_time * 1000 : undefined,
+    text,
+    senderId: typeof quote === 'string' ? undefined : quote.from?.userid,
+    timestamp: typeof quote === 'string' || !quote.create_time
+      ? undefined
+      : quote.create_time * 1000,
+  };
+}
+
+/**
+ * Build the inbound text + quote payload for a WeCom message.
+ *
+ * When the source body carries quote/reply context, prefix the base text
+ * with the quoted content rendered as a Markdown blockquote and return
+ * the parsed quote object so it can be attached to InboundChannelMessage.
+ *
+ * Centralising this logic ensures text / voice / image / mixed handlers
+ * all surface quoted context consistently — previously only the text
+ * handler honoured quotes, silently dropping reply context for every
+ * other message kind.
+ */
+function buildQuotedInbound(body: Record<string, any>, baseText: string): {
+  text: string;
+  quote?: { text: string; senderId?: string; timestamp?: number };
+} {
+  const quote = parseQuoteMessage(body);
+  if (!quote) return { text: baseText };
+  const quotedBlock = quote.text
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n');
+  return {
+    text: `${quotedBlock}\n\n${baseText}`,
+    quote,
   };
 }
 
