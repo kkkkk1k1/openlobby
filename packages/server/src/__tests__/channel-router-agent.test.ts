@@ -238,7 +238,8 @@ describe('ChannelRouter account-bound Agent routing', () => {
 
     expect(adapter.spawnCount).toBe(1);
     const proc = adapter.spawnedProcesses[0]!;
-    expect(proc.sentMessages).toEqual(['hey @bot please help']);
+    // Sender tag prefix uses peerDisplayName when present, falling back to peerId.
+    expect(proc.sentMessages).toEqual(['[from: Group 2] hey @bot please help']);
 
     // Account-level binding still in place, pointing at the same agent.
     const acct = getAccountBinding(db, CHANNEL, ACCOUNT);

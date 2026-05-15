@@ -637,7 +637,13 @@ export class ChannelRouterImpl implements ChannelRouter {
             : attachmentText;
         }
       }
-      await this.sessionManager.sendMessage(sessionId, messageText);
+      // Inject sender identity so downstream agents can attribute the message
+      // to a real user (e.g. arcs-sdk-collector's `reporter`, sz-task audit log).
+      // Without this, msg.identity.{peerId, peerDisplayName} is dropped at the
+      // session boundary and every inbound looks like an anonymous default.
+      const senderTag = msg.identity.peerDisplayName || msg.identity.peerId;
+      const taggedText = `[from: ${senderTag}] ${messageText}`;
+      await this.sessionManager.sendMessage(sessionId, taggedText);
       updateBindingActivity(this.db, identityKey);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
@@ -721,7 +727,11 @@ export class ChannelRouterImpl implements ChannelRouter {
     );
 
     try {
-      await this.sessionManager.sendMessage(session.id, msg.text);
+      // Mirror handleInbound: tag the text with the sender so account-bound
+      // agents see real-user attribution instead of anonymous defaults.
+      const senderTag = msg.identity.peerDisplayName || msg.identity.peerId;
+      const taggedText = `[from: ${senderTag}] ${msg.text}`;
+      await this.sessionManager.sendMessage(session.id, taggedText);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error('[ChannelRouter] Account-bound Agent send failed:', errMsg);

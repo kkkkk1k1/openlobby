@@ -236,15 +236,81 @@ describe('ChannelRouter account-level Agent binding', () => {
 
     // Four distinct fan-out keys → four spawned sessions.
     expect(adapter.spawnCount).toBe(4);
+    // Every text is prefixed with the sender tag so agents can attribute
+    // the message to a real user. Identities here have no peerDisplayName,
+    // so the tag falls back to peerId.
     const texts = adapter.spawnedProcesses.flatMap((p) => p.sentMessages);
-    expect(texts).toContain('hi from user-1 DM');
-    expect(texts).toContain('hi from user-2 DM');
-    expect(texts).toContain('hi from user-1 in G1');
-    expect(texts).toContain('hi from user-2 in G1');
+    expect(texts).toContain('[from: user-1] hi from user-1 DM');
+    expect(texts).toContain('[from: user-2] hi from user-2 DM');
+    expect(texts).toContain('[from: user-1] hi from user-1 in G1');
+    expect(texts).toContain('[from: user-2] hi from user-2 in G1');
 
     // No peer-level binding rows should have been written for the account.
     expect(getBinding(db, 'test-channel:bot-A:user-1')).toBeUndefined();
     expect(getBinding(db, 'test-channel:bot-A:user-2')).toBeUndefined();
+  });
+
+  it('prefixes inbound text with [from: <peerId>] so agents can see the real sender', async () => {
+    // Regression: identity.{peerId, peerDisplayName} used to be dropped at the
+    // sessionManager.sendMessage boundary, so agents that need to attribute a
+    // message (e.g. arcs-sdk-collector's reporter field, sz-task audit log) saw
+    // only msg.text and fell back to anonymous defaults. The router must inject
+    // the sender into the text itself.
+    registry.create({
+      id: 'attributable',
+      displayName: 'Attributable Agent',
+      description: '',
+      adapter: 'stub',
+      contextFiles: [],
+      groupChat: { mentionPatterns: [], requireMention: false },
+    });
+
+    const bindResult = router.bindAgentToAccount(
+      'test-channel',
+      'bot-A',
+      'attributable',
+    );
+    expect(bindResult.ok).toBe(true);
+
+    const identity: ChannelIdentity = {
+      channelName: 'test-channel',
+      accountId: 'bot-A',
+      peerId: 'kyhuang',
+      peerKind: 'direct',
+    };
+
+    await router.handleInbound(makeInbound(identity, 'hi'));
+
+    expect(adapter.spawnCount).toBe(1);
+    const proc = adapter.spawnedProcesses[0]!;
+    expect(proc.sentMessages).toHaveLength(1);
+    expect(proc.sentMessages[0]!.startsWith('[from: kyhuang]')).toBe(true);
+    expect(proc.sentMessages[0]).toBe('[from: kyhuang] hi');
+  });
+
+  it('prefers peerDisplayName over peerId in the sender tag when present', async () => {
+    registry.create({
+      id: 'display-name-agent',
+      displayName: 'Display Name Agent',
+      description: '',
+      adapter: 'stub',
+      contextFiles: [],
+      groupChat: { mentionPatterns: [], requireMention: false },
+    });
+    router.bindAgentToAccount('test-channel', 'bot-A', 'display-name-agent');
+
+    const identity: ChannelIdentity = {
+      channelName: 'test-channel',
+      accountId: 'bot-A',
+      peerId: 'wxid_abc123',
+      peerDisplayName: 'Kun Huang',
+      peerKind: 'direct',
+    };
+
+    await router.handleInbound(makeInbound(identity, 'ping'));
+
+    const proc = adapter.spawnedProcesses[0]!;
+    expect(proc.sentMessages[0]).toBe('[from: Kun Huang] ping');
   });
 
   it('toAgentPeerKey produces distinct keys for direct/group + user', () => {
