@@ -12,6 +12,7 @@ import type {
   SpawnOptions,
   ResumeOptions,
   LobbyMessage,
+  McpServerConfig,
   SessionSummary,
   ControlDecision,
   AdapterCommand,
@@ -106,6 +107,72 @@ function quoteWindowsShellArg(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
+// ──────────────────────────────────────────────
+// TOML inline serialization for `-c key=value` overrides
+// ──────────────────────────────────────────────
+//
+// Codex CLI accepts `-c <keyPath>=<TOML value>` as a launch-time override
+// that lives ONLY in the spawned process's in-memory config. It does NOT
+// touch ~/.codex/config.toml on disk, so injected MCP servers stay scoped
+// to the OpenLobby-spawned Codex process and never leak to other Codex
+// invocations on the same machine.
+
+/** Escape a string for TOML basic-string syntax (double quotes). */
+function tomlString(value: string): string {
+  // Order matters: escape backslashes first, then double-quotes, then
+  // control characters that TOML requires to be escaped.
+  // NOTE: backspace () and form feed () MUST be matched via a
+  // character class — bare `\b` in a regex literal is a word-boundary
+  // assertion, not the backspace character.
+  const escaped = value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+    .replace(/[\f]/g, '\\f')
+    .replace(/[\b]/g, '\\b');
+  return `"${escaped}"`;
+}
+
+/** Return a TOML key (bare if it matches the bare-key grammar, otherwise quoted). */
+function tomlKey(key: string): string {
+  return /^[A-Za-z0-9_-]+$/.test(key) ? key : tomlString(key);
+}
+
+/** Build a TOML inline array of strings. */
+function tomlInlineStringArray(items: string[]): string {
+  return `[${items.map(tomlString).join(', ')}]`;
+}
+
+/** Build a TOML inline table from a flat string-keyed string map. */
+function tomlInlineStringTable(obj: Record<string, string>): string {
+  const entries = Object.entries(obj).map(
+    ([k, v]) => `${tomlKey(k)} = ${tomlString(v)}`,
+  );
+  return entries.length === 0 ? '{}' : `{ ${entries.join(', ')} }`;
+}
+
+/** Serialize one McpServerConfig as a TOML inline table value. */
+function mcpServerToInlineToml(config: McpServerConfig): string {
+  const parts: string[] = [`command = ${tomlString(config.command)}`];
+  parts.push(`args = ${tomlInlineStringArray(config.args ?? [])}`);
+  parts.push(`env = ${tomlInlineStringTable(config.env ?? {})}`);
+  return `{ ${parts.join(', ')} }`;
+}
+
+/** Build the full `-c mcp_servers.<name>=<inline_table>` argv pairs. */
+function buildMcpServerOverrideArgs(
+  mcpServers: Record<string, McpServerConfig> | undefined,
+): string[] {
+  if (!mcpServers) return [];
+  const out: string[] = [];
+  for (const [name, config] of Object.entries(mcpServers)) {
+    out.push('-c', `mcp_servers.${tomlKey(name)}=${mcpServerToInlineToml(config)}`);
+  }
+  return out;
+}
+
 function resolveCodexCliPath(cliPath?: string): string {
   if (cliPath) return cliPath;
 
@@ -118,9 +185,19 @@ function resolveCodexCliPath(cliPath?: string): string {
   return resolved;
 }
 
-export function buildCodexLaunchSpec(cliPath?: string): CodexLaunchSpec {
+export function buildCodexLaunchSpec(
+  cliPath?: string,
+  mcpServers?: Record<string, McpServerConfig>,
+): CodexLaunchSpec {
   const resolvedCliPath = resolveCodexCliPath(cliPath);
-  const args = ['app-server', '--listen', 'stdio://'];
+  // MCP overrides come BEFORE the `app-server` subcommand so they bind to
+  // the top-level `codex` invocation (where `-c` is parsed).
+  const args = [
+    ...buildMcpServerOverrideArgs(mcpServers),
+    'app-server',
+    '--listen',
+    'stdio://',
+  ];
 
   if (process.platform !== 'win32') {
     return { command: resolvedCliPath, args };
@@ -162,7 +239,6 @@ export class CodexCliProcess extends EventEmitter implements AgentProcess {
   private initialized = false;
   private lineBuffer = '';
   private spawnOptions: SpawnOptions;
-  private injectedMcpServers: string[] = [];
   private originalInstructions: string | undefined;
   /** Set to true when kill() is called intentionally, so exit handler respects it */
   private killedIntentionally = false;
@@ -184,7 +260,12 @@ export class CodexCliProcess extends EventEmitter implements AgentProcess {
     if (this.spawnOptions.apiKey) {
       env.OPENAI_API_KEY = this.spawnOptions.apiKey;
     }
-    const launchSpec = buildCodexLaunchSpec(this.cliPath);
+    // Inject MCP servers via launch-time `-c mcp_servers.<name>={...}` overrides.
+    // CRITICAL: do NOT use the `config/value/write` RPC for this — that RPC
+    // persists to ~/.codex/config.toml and pollutes every Codex CLI session
+    // on the machine (including ones started outside OpenLobby). The `-c`
+    // overrides live only in this child process's in-memory config.
+    const launchSpec = buildCodexLaunchSpec(this.cliPath, this.spawnOptions.mcpServers);
     this.childProcess = spawnChild(launchSpec.command, launchSpec.args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: this.spawnOptions.cwd,
@@ -241,34 +322,12 @@ export class CodexCliProcess extends EventEmitter implements AgentProcess {
       throw err;
     }
 
-    // === Inject MCP servers via config/value/write (before thread/start) ===
-    if (this.spawnOptions.mcpServers) {
-      for (const [name, config] of Object.entries(this.spawnOptions.mcpServers)) {
-        try {
-          await this.sendRpc('config/value/write', {
-            keyPath: `mcp_servers.${name}`,
-            value: {
-              command: config.command,
-              args: config.args ?? [],
-              env: config.env ?? {},
-            },
-            mergeStrategy: 'upsert',
-          });
-          this.injectedMcpServers.push(name);
-          console.log(`[Codex] MCP server injected: ${name}`);
-        } catch (err) {
-          console.warn(`[Codex] Failed to inject MCP server ${name}:`, err);
-        }
-      }
-      if (this.injectedMcpServers.length > 0) {
-        try {
-          await this.sendRpc('config/mcpServer/reload', {});
-          console.log('[Codex] MCP servers reloaded');
-        } catch (err) {
-          console.warn('[Codex] Failed to reload MCP servers:', err);
-        }
-      }
-    }
+    // NOTE: MCP servers were injected via `-c mcp_servers.*=...` launch
+    // overrides in buildCodexLaunchSpec (see above). We intentionally do
+    // NOT call `config/value/write` here — that RPC persists to
+    // ~/.codex/config.toml and leaks OpenLobby's MCP into every other
+    // Codex CLI session on the machine, including ones started after
+    // OpenLobby has exited.
 
     // === Start or resume thread ===
     try {
@@ -430,17 +489,8 @@ export class CodexCliProcess extends EventEmitter implements AgentProcess {
   kill(): void {
     console.log('[Codex] Killing process');
     this.killedIntentionally = true;
-    // Clean up injected MCP servers from global config
-    if (this.injectedMcpServers.length > 0 && this.childProcess) {
-      for (const name of this.injectedMcpServers) {
-        this.sendRpc('config/value/write', {
-          keyPath: `mcp_servers.${name}`,
-          value: null,
-          mergeStrategy: 'replace',
-        }).catch(() => {});
-      }
-      this.injectedMcpServers = [];
-    }
+    // No global-config cleanup needed: MCP servers are injected via `-c`
+    // launch overrides (in-memory only), never persisted to ~/.codex/config.toml.
     if (this.childProcess) {
       this.childProcess.kill();
       this.childProcess = null;
