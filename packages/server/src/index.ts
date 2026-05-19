@@ -297,6 +297,14 @@ export async function createServer(options: ServerOptions = {}) {
     console.log(`Shutting down OpenLobby server (${signal})...`);
     try {
       ptyManager.dispose();
+      // Tear down meta-agent sessions first so their CLI child processes get
+      // a graceful kill() rather than being orphaned. This is a defense-in-depth
+      // backstop for the codex-cli launch-time `-c` MCP injection — once that
+      // fix lands the only thing left to leak is the child process itself.
+      await Promise.allSettled([
+        lobbyManager.destroy(),
+        agentManager.destroy(),
+      ]);
       await Promise.allSettled([
         app.close(),
         mcpApi.close(),

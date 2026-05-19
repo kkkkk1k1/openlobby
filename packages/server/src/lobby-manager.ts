@@ -318,7 +318,7 @@ export class LobbyManager {
    * Destroy the current LM session and recreate with a new adapter.
    */
   async rebuild(newAdapterName: string): Promise<void> {
-    this.destroy();
+    await this.destroy();
     this.available = false;
     this.adapterName = null;
     this.sessionId = null;
@@ -328,12 +328,15 @@ export class LobbyManager {
     await this.init(newAdapterName);
   }
 
-  destroy(): void {
+  async destroy(): Promise<void> {
     if (this.sessionId) {
-      this.sessionManager.destroySession(this.sessionId).catch((err) => {
-        console.error('[LM] Failed to destroy session:', err);
-      });
+      const id = this.sessionId;
       this.sessionId = null;
+      try {
+        await this.sessionManager.destroySession(id);
+      } catch (err) {
+        console.error('[LM] Failed to destroy session:', err);
+      }
     }
   }
 }
