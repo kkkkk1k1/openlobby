@@ -195,7 +195,9 @@ function ThemeIcon({ theme }: { theme: Theme }) {
   return <span>💻</span>;
 }
 
-export default function Sidebar() {
+export default function Sidebar(
+  { onSessionSelect }: { onSessionSelect?: (sessionId: string) => void } = {},
+) {
   const sessions = useLobbyStore((s) => s.sessions);
   const activeSessionId = useLobbyStore((s) => s.activeSessionId);
   const connected = useLobbyStore((s) => s.connected);
@@ -241,6 +243,7 @@ export default function Sidebar() {
   const handleSelectSession = (id: string) => {
     setActiveSession(id);
     wsRequestSessionHistory(id);
+    onSessionSelect?.(id);
   };
 
   const cycleTheme = () => {
