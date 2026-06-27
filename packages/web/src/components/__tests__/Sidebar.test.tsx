@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Sidebar from '../Sidebar';
-import { useLobbyStore } from '../../stores/lobby-store';
+import { useLobbyStore, type SessionSummaryData } from '../../stores/lobby-store';
 import { ThemeContext } from '../../contexts/ThemeContext';
 import { I18nContext } from '../../contexts/I18nContext';
 
@@ -46,7 +46,7 @@ vi.mock('../UpdateDialog', () => ({
 
 // --- Helpers ---
 
-const mockSession = {
+const mockSession: SessionSummaryData = {
   id: 'session-1',
   adapterName: 'claude-code',
   displayName: 'Test Session',
@@ -72,8 +72,8 @@ function renderSidebar(props: { onSessionSelect?: (id: string) => void } = {}) {
   );
 }
 
-function setupSessionInStore(sessionOverrides: Partial<typeof mockSession> = {}) {
-  const s = { ...mockSession, ...sessionOverrides };
+function setupSessionInStore(overrides: Partial<SessionSummaryData> = {}) {
+  const s = { ...mockSession, ...overrides };
   useLobbyStore.setState({
     sessions: { [s.id]: s },
     activeSessionId: null,
