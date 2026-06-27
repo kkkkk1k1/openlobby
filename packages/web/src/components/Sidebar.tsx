@@ -261,7 +261,7 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className="w-72 bg-surface-secondary border-r border-outline flex flex-col h-full">
+      <aside className="w-full md:w-72 bg-surface-secondary border-r border-outline flex flex-col h-full">
         <div className="px-4 py-3 border-b border-outline flex items-center justify-between">
           <h1 className="text-lg font-bold text-on-surface">OpenLobby</h1>
           <div className="flex items-center gap-1.5">
