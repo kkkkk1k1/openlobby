@@ -209,10 +209,14 @@ export default function Sidebar(
   const amAvailable = useLobbyStore((s) => s.amAvailable);
   const amSessionId = useLobbyStore((s) => s.amSessionId);
   const versionInfo = useVersionCheck();
-  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
-  const [showChannelPanel, setShowChannelPanel] = useState(false);
-  const [showAgentsPanel, setShowAgentsPanel] = useState(false);
-  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const showAgentsPanel = useLobbyStore((s) => s.showAgentsPanel);
+  const setShowAgentsPanel = useLobbyStore((s) => s.setShowAgentsPanel);
+  const showChannelPanel = useLobbyStore((s) => s.showChannelPanel);
+  const setShowChannelPanel = useLobbyStore((s) => s.setShowChannelPanel);
+  const showSettingsDialog = useLobbyStore((s) => s.showSettingsDialog);
+  const setShowSettingsDialog = useLobbyStore((s) => s.setShowSettingsDialog);
+  const showUpdateDialog = useLobbyStore((s) => s.showUpdateDialog);
+  const setShowUpdateDialog = useLobbyStore((s) => s.setShowUpdateDialog);
   const agentsCount = useLobbyStore((s) => s.agents.length);
   const agentsPanelRequest = useLobbyStore((s) => s.agentsPanelRequest);
   const dismissAgentsPanel = useLobbyStore((s) => s.dismissAgentsPanel);
