@@ -126,6 +126,11 @@
   --color-sidebar-hover: rgba(255, 255, 255, 0.05);
 }
 
+/* ── Mobile Navigation ── */
+:root {
+  --mobile-nav-height: 64px;
+}
+
 /* Smooth theme transitions */
 * {
   transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
@@ -133,6 +138,18 @@
 /* Disable transitions for animations */
 .animate-bounce, .animate-pulse {
   transition: none;
+}
+
+/* Safe area padding bottom for mobile nav */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Disable motion transitions when user prefers reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .motion-safe\:duration-200 {
+    transition-duration: 0ms !important;
+  }
 }
 
 /* Markdown rendering styles */

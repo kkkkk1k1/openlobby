@@ -116,6 +116,14 @@ interface LobbyState {
   discoveredSessions: SessionSummaryData[];
   showDiscoverDialog: boolean;
 
+  // Mobile navigation state
+  drawerOpen: boolean;
+  showAgentsPanel: boolean;
+  showChannelPanel: boolean;
+  setDrawerOpen: (open: boolean) => void;
+  setShowAgentsPanel: (show: boolean) => void;
+  setShowChannelPanel: (show: boolean) => void;
+
   // Lobby Manager state
   lmAvailable: boolean;
   lmSessionId: string | null;
@@ -233,6 +241,14 @@ export const useLobbyStore = create<LobbyState>((set) => ({
   connected: false,
   discoveredSessions: [],
   showDiscoverDialog: false,
+
+  // Mobile navigation state
+  drawerOpen: false,
+  showAgentsPanel: false,
+  showChannelPanel: false,
+  setDrawerOpen: (open) => set({ drawerOpen: open }),
+  setShowAgentsPanel: (show) => set({ showAgentsPanel: show }),
+  setShowChannelPanel: (show) => set({ showChannelPanel: show }),
 
   lmAvailable: false,
   lmSessionId: null,

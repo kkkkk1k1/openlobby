@@ -147,6 +147,10 @@ export const zhCNMessages = {
   'discover.importing': '导入中...',
   'discover.alreadyImported': '已导入',
 
+  'nav.sessions': '会话',
+  'nav.agents': '代理',
+  'nav.channels': '频道',
+
   'newSession.title': '新会话',
   'newSession.agent': 'Agent',
   'newSession.name': '名称',
