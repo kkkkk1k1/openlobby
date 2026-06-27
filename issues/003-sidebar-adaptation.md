@@ -2,7 +2,8 @@
 type: AFK
 estimate: 0.5d
 effort: small
-status: in_progress
+status: in_review
+pr: ["https://github.com/kkkkk1k1/openlobby/pull/17"]
 blocked_by: ["001"]
 needs_llm: false
 needs_vision: false
