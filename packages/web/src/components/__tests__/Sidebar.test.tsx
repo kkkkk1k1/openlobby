@@ -6,15 +6,26 @@ import { useLobbyStore } from '../../stores/lobby-store';
 import { ThemeContext } from '../../contexts/ThemeContext';
 import { I18nContext } from '../../contexts/I18nContext';
 
-vi.mock('../hooks/useWebSocket', () => ({
+vi.mock('../../hooks/useWebSocket', () => ({
   wsRequestSessionHistory: vi.fn(),
   wsDiscoverSessions: vi.fn(),
   wsPinSession: vi.fn(),
   wsRenameSession: vi.fn(),
 }));
 
-vi.mock('../hooks/useVersionCheck', () => ({
-  useVersionCheck: () => ({ hasUpdate: false, latest: null }),
+import type { VersionState } from '../../hooks/useVersionCheck';
+
+const mockVersion: VersionState & { recheckNow: () => void } = {
+  current: '0.0.0',
+  latest: '1.0.0',
+  hasUpdate: true,
+  installMode: 'global',
+  checking: false,
+  recheckNow: vi.fn(),
+};
+
+vi.mock('../../hooks/useVersionCheck', () => ({
+  useVersionCheck: vi.fn(() => mockVersion),
 }));
 
 vi.mock('../DiscoverDialog', () => ({
