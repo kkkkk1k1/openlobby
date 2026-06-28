@@ -41,6 +41,7 @@ export interface Messages {
   'app.emptyStateTitle': string;
   'app.emptyStateHint': string;
   'app.sessionEndedHint': string;
+  'app.mobileEmptyState': string;
 
   'sidebar.importCliSessions': string;
   'sidebar.empty': string;
