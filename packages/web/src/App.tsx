@@ -71,6 +71,22 @@ export default function App() {
     }
   }, [agentsPanelRequest, setShowAgentsPanel]);
 
+  const handleCloseDrawer = useCallback(() => setDrawerOpen(false), [setDrawerOpen]);
+
+  const handleSessionSelect = useCallback(() => {
+    setDrawerOpen(false);
+  }, [setDrawerOpen]);
+
+  // matchMedia — auto-close drawer when crossing desktop breakpoint
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 768px)');
+    const handler = () => {
+      if (mql.matches) setDrawerOpen(false);
+    };
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, [setDrawerOpen]);
+
   const handleChoiceSelect = useCallback(
     (label: string) => {
       if (!activeSessionId) return;
@@ -88,9 +104,36 @@ export default function App() {
     <ThemeContext.Provider value={themeValue}>
       <I18nContext.Provider value={i18nValue}>
         <div className="h-screen h-dvh flex flex-col md:flex-row bg-surface text-on-surface">
-          <Sidebar />
+          {/* Desktop sidebar */}
+          <div className="hidden md:flex md:w-72 shrink-0">
+            <Sidebar />
+          </div>
 
-          <main className="flex-1 flex flex-col min-w-0">
+          {/* Mobile drawer */}
+          <MobileDrawer open={drawerOpen} onClose={handleCloseDrawer}>
+            <Sidebar onSessionSelect={handleSessionSelect} />
+          </MobileDrawer>
+
+          {/* Main content */}
+          <main className="flex-1 flex flex-col min-w-0 pb-[calc(var(--mobile-nav-height)+env(safe-area-inset-bottom,0px))] md:pb-0">
+            {/* Mobile header bar */}
+            <div className="md:hidden flex items-center px-3 py-2 border-b border-outline bg-surface-secondary">
+              <button
+                onClick={() => setDrawerOpen(true)}
+                aria-label="Open navigation menu"
+                aria-expanded={drawerOpen}
+                aria-controls="mobile-drawer"
+                className="w-11 h-11 flex items-center justify-center rounded-lg"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+              </button>
+              <h1 className="text-sm font-bold ml-3">OpenLobby</h1>
+            </div>
+
             <RoomHeader />
 
             {activeSessionId ? (
@@ -123,14 +166,27 @@ export default function App() {
                 )}
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center text-on-surface-muted">
-                  <p className="text-lg mb-2">{i18nValue.t('app.emptyStateTitle')}</p>
-                  <p className="text-sm">{i18nValue.t('app.emptyStateHint')}</p>
+              <>
+                {/* Desktop empty state */}
+                <div className="hidden md:flex flex-1 items-center justify-center">
+                  <div className="text-center text-on-surface-muted">
+                    <p className="text-lg mb-2">{i18nValue.t('app.emptyStateTitle')}</p>
+                    <p className="text-sm">{i18nValue.t('app.emptyStateHint')}</p>
+                  </div>
                 </div>
-              </div>
+                {/* Mobile empty state — drawer closed */}
+                {!drawerOpen && (
+                  <div className="flex md:hidden flex-1 items-center justify-center">
+                    <div className="text-center text-on-surface-muted px-4">
+                      <p className="text-sm">{i18nValue.t('app.mobileEmptyState')}</p>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </main>
+
+          <MobileNav />
         </div>
 
         {showDiscoverDialog && (
