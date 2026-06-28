@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -29,6 +29,21 @@ function getTerminalTheme(): { background: string; foreground: string; cursor: s
 
 export default function TerminalView({ sessionId }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastCommandRef = useRef('');
+  const inputBufferRef = useRef('');
+  const [copied, setCopied] = useState(false);
+  const [lastCommand, setLastCommand] = useState('');
+
+  const copyLastCommand = useCallback(async () => {
+    if (!lastCommandRef.current) return;
+    try {
+      await navigator.clipboard.writeText(lastCommandRef.current);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API not available
+    }
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -69,6 +84,20 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
 
     const inputDisposable = terminal.onData((data) => {
       wsPtyInput(sessionId, data);
+      // Track last command for copy button
+      if (data === '\r' || data === '\n') {
+        const cmd = inputBufferRef.current.trim();
+        if (cmd) {
+          lastCommandRef.current = cmd;
+          setLastCommand(cmd);
+        }
+        inputBufferRef.current = '';
+      } else if (data === '\x7f') {
+        // Backspace
+        inputBufferRef.current = inputBufferRef.current.slice(0, -1);
+      } else if (data.length === 1 && data.charCodeAt(0) >= 0x20) {
+        inputBufferRef.current += data;
+      }
     });
 
     const store = useLobbyStore.getState();
@@ -102,10 +131,20 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
   }, [sessionId]);
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 bg-[var(--color-terminal-bg)] overflow-hidden"
-      style={{ minHeight: 0 }}
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="flex-1 bg-[var(--color-terminal-bg)] overflow-hidden"
+        style={{ minHeight: 0 }}
+      />
+      {lastCommand && (
+        <button
+          onClick={copyLastCommand}
+          className="md:hidden fixed bottom-20 right-3 z-30 px-3 py-1.5 rounded-lg bg-surface text-on-surface text-xs border border-outline shadow-lg tap-target"
+        >
+          {copied ? 'Copied!' : 'Copy last command'}
+        </button>
+      )}
+    </>
   );
 }
