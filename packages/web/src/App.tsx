@@ -57,7 +57,7 @@ export default function App() {
   return (
     <ThemeContext.Provider value={themeValue}>
       <I18nContext.Provider value={i18nValue}>
-        <div className="h-screen flex bg-surface text-on-surface">
+        <div className="h-screen h-dvh flex bg-surface text-on-surface">
           <Sidebar />
 
           <main className="flex-1 flex flex-col min-w-0">
