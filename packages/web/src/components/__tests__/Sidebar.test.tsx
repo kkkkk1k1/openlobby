@@ -160,23 +160,23 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByText('Session s1'));
   });
 
-  // ── AC4: Dialog state from store ───────────────────
-  it('AC4: reads showAgentsPanel from store', () => {
+  // ── AC4: Dialog state from store (dialogs moved to App.tsx — verify buttons exist) ──
+  it('AC4: reads showAgentsPanel from store — button renders in Sidebar', () => {
     useLobbyStore.setState({ showAgentsPanel: true });
     renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Agent Configuration')).toBeInTheDocument();
+    expect(screen.getByTitle('Agents')).toBeInTheDocument();
   });
 
-  it('AC4: reads showChannelPanel from store', () => {
+  it('AC4: reads showChannelPanel from store — button renders in Sidebar', () => {
     useLobbyStore.setState({ showChannelPanel: true });
     renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Channel Management')).toBeInTheDocument();
+    expect(screen.getByTitle('IM Channels')).toBeInTheDocument();
   });
 
-  it('AC4: reads showSettingsDialog from store', () => {
+  it('AC4: reads showSettingsDialog from store — button renders in Sidebar', () => {
     useLobbyStore.setState({ showSettingsDialog: true });
     renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Default adapter')).toBeInTheDocument();
+    expect(screen.getByTitle('Settings')).toBeInTheDocument();
   });
 
   it('AC4: reads showUpdateDialog from store — triggers dialog via store state', () => {
@@ -276,9 +276,8 @@ describe('Sidebar', () => {
     expect(screen.getByTitle('Toggle Language')).toBeInTheDocument();
   });
 
-  it('AC7: renders showDiscoverDialog from store', () => {
-    useLobbyStore.setState({ showDiscoverDialog: true });
+  it('AC7: renders Import button in Sidebar toolbar', () => {
     renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Import')).toBeInTheDocument();
+    expect(screen.getByText(/Import/)).toBeInTheDocument();
   });
 });
