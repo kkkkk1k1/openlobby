@@ -259,7 +259,6 @@ export default function Sidebar({ onSessionSelect }: { onSessionSelect?: (sessio
         : t('common.dark');
 
   return (
-    <>
       <aside className="w-full md:w-72 bg-surface-secondary border-r border-outline flex flex-col h-full">
         <div className="px-4 py-3 border-b border-outline flex items-center justify-between">
           <h1 className="text-lg font-bold text-on-surface">OpenLobby</h1>
