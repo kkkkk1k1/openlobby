@@ -44,7 +44,7 @@ export default function ChannelManagePanel({ onClose }: Props) {
   return (
     <div className="fixed inset-0 bg-[var(--color-surface-overlay)] flex items-center justify-center z-50" onClick={onClose}>
       <div
-        className="bg-surface-secondary rounded-xl p-6 w-full max-w-lg border border-outline max-h-[80vh] flex flex-col"
+        className="bg-surface-secondary rounded-xl p-6 w-full max-w-lg border border-outline max-h-[80vh] max-h-[80dvh] overflow-y-auto w-[calc(100vw-32px)] md:w-96 mx-4 md:mx-0 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
