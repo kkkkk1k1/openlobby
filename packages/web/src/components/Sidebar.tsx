@@ -5,12 +5,7 @@ import { wsRequestSessionHistory, wsDiscoverSessions, wsPinSession, wsRenameSess
 import { useThemeContext } from '../contexts/ThemeContext';
 import { useI18nContext } from '../contexts/I18nContext';
 import type { Theme } from '../hooks/useTheme';
-import DiscoverDialog from './DiscoverDialog';
-import ChannelManagePanel from './ChannelManagePanel';
-import AgentsPanel from './AgentsPanel';
-import GlobalSettingsDialog from './GlobalSettingsDialog';
 import { useVersionCheck } from '../hooks/useVersionCheck';
-import { UpdateDialog } from './UpdateDialog';
 
 const APP_VERSION = __APP_VERSION__;
 
@@ -424,31 +419,6 @@ export default function Sidebar({ onSessionSelect }: { onSessionSelect?: (sessio
         </div>
       </aside>
 
-      {showDiscoverDialog && (
-        <DiscoverDialog onClose={() => setShowDiscoverDialog(false)} />
-      )}
-      {showChannelPanel && (
-        <ChannelManagePanel onClose={() => setShowChannelPanel(false)} />
-      )}
-      {showAgentsPanel && (
-        <AgentsPanel
-          highlightId={agentsPanelRequest?.highlightId}
-          onClose={() => {
-            setShowAgentsPanel(false);
-            dismissAgentsPanel();
-          }}
-        />
-      )}
-      {showSettingsDialog && (
-        <GlobalSettingsDialog onClose={() => setShowSettingsDialog(false)} />
-      )}
-      {showUpdateDialog && versionInfo.latest && (
-        <UpdateDialog
-          latestVersion={versionInfo.latest}
-          installMode={versionInfo.installMode}
-          onClose={() => setShowUpdateDialog(false)}
-        />
-      )}
     </>
   );
 }

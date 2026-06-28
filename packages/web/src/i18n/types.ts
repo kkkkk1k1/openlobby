@@ -40,6 +40,7 @@ export interface Messages {
   'app.recoverToIdle': string;
   'app.emptyStateTitle': string;
   'app.emptyStateHint': string;
+  'app.mobileEmptyState': string;
   'app.sessionEndedHint': string;
 
   'sidebar.importCliSessions': string;
