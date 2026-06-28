@@ -4,13 +4,8 @@ import type { SessionSummaryData } from '../stores/lobby-store';
 import { wsRequestSessionHistory, wsDiscoverSessions, wsPinSession, wsRenameSession } from '../hooks/useWebSocket';
 import { useThemeContext } from '../contexts/ThemeContext';
 import { useI18nContext } from '../contexts/I18nContext';
-import type { Theme } from '../hooks/useTheme';
-import DiscoverDialog from './DiscoverDialog';
-import ChannelManagePanel from './ChannelManagePanel';
-import AgentsPanel from './AgentsPanel';
-import GlobalSettingsDialog from './GlobalSettingsDialog';
 import { useVersionCheck } from '../hooks/useVersionCheck';
-import { UpdateDialog } from './UpdateDialog';
+import type { Theme } from '../hooks/useTheme';
 
 const APP_VERSION = __APP_VERSION__;
 
@@ -199,20 +194,15 @@ export default function Sidebar({ onSessionSelect }: { onSessionSelect?: (sessio
   const activeSessionId = useLobbyStore((s) => s.activeSessionId);
   const connected = useLobbyStore((s) => s.connected);
   const setActiveSession = useLobbyStore((s) => s.setActiveSession);
-  const showDiscoverDialog = useLobbyStore((s) => s.showDiscoverDialog);
   const setShowDiscoverDialog = useLobbyStore((s) => s.setShowDiscoverDialog);
   const lmAvailable = useLobbyStore((s) => s.lmAvailable);
   const lmSessionId = useLobbyStore((s) => s.lmSessionId);
   const amAvailable = useLobbyStore((s) => s.amAvailable);
   const amSessionId = useLobbyStore((s) => s.amSessionId);
   const versionInfo = useVersionCheck();
-  const showUpdateDialog = useLobbyStore((s) => s.showUpdateDialog);
   const setShowUpdateDialog = useLobbyStore((s) => s.setShowUpdateDialog);
-  const showChannelPanel = useLobbyStore((s) => s.showChannelPanel);
   const setShowChannelPanel = useLobbyStore((s) => s.setShowChannelPanel);
-  const showAgentsPanel = useLobbyStore((s) => s.showAgentsPanel);
   const setShowAgentsPanel = useLobbyStore((s) => s.setShowAgentsPanel);
-  const showSettingsDialog = useLobbyStore((s) => s.showSettingsDialog);
   const setShowSettingsDialog = useLobbyStore((s) => s.setShowSettingsDialog);
   const agentsCount = useLobbyStore((s) => s.agents.length);
   const agentsPanelRequest = useLobbyStore((s) => s.agentsPanelRequest);
@@ -264,8 +254,7 @@ export default function Sidebar({ onSessionSelect }: { onSessionSelect?: (sessio
         : t('common.dark');
 
   return (
-    <>
-      <aside className="w-full md:w-72 bg-surface-secondary border-r border-outline flex flex-col h-full">
+    <aside className="w-full md:w-72 bg-surface-secondary border-r border-outline flex flex-col h-full">
         <div className="px-4 py-3 border-b border-outline flex items-center justify-between">
           <h1 className="text-lg font-bold text-on-surface">OpenLobby</h1>
           <div className="flex items-center gap-1.5">
@@ -423,32 +412,5 @@ export default function Sidebar({ onSessionSelect }: { onSessionSelect?: (sessio
           </div>
         </div>
       </aside>
-
-      {showDiscoverDialog && (
-        <DiscoverDialog onClose={() => setShowDiscoverDialog(false)} />
-      )}
-      {showChannelPanel && (
-        <ChannelManagePanel onClose={() => setShowChannelPanel(false)} />
-      )}
-      {showAgentsPanel && (
-        <AgentsPanel
-          highlightId={agentsPanelRequest?.highlightId}
-          onClose={() => {
-            setShowAgentsPanel(false);
-            dismissAgentsPanel();
-          }}
-        />
-      )}
-      {showSettingsDialog && (
-        <GlobalSettingsDialog onClose={() => setShowSettingsDialog(false)} />
-      )}
-      {showUpdateDialog && versionInfo.latest && (
-        <UpdateDialog
-          latestVersion={versionInfo.latest}
-          installMode={versionInfo.installMode}
-          onClose={() => setShowUpdateDialog(false)}
-        />
-      )}
-    </>
   );
 }

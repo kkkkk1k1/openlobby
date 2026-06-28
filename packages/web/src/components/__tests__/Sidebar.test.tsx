@@ -160,36 +160,26 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByText('Session s1'));
   });
 
-  // ── AC4: Dialog state from store ───────────────────
-  it('AC4: reads showAgentsPanel from store', () => {
-    useLobbyStore.setState({ showAgentsPanel: true });
+  // ── AC4: Dialog trigger buttons from store ───────────────────
+  it('AC4: renders Agents button in toolbar', () => {
     renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Agent Configuration')).toBeInTheDocument();
+    expect(screen.getByTitle('Agents')).toBeInTheDocument();
   });
 
-  it('AC4: reads showChannelPanel from store', () => {
-    useLobbyStore.setState({ showChannelPanel: true });
+  it('AC4: renders IM Channels button in toolbar', () => {
     renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Channel Management')).toBeInTheDocument();
+    expect(screen.getByTitle('IM Channels')).toBeInTheDocument();
   });
 
-  it('AC4: reads showSettingsDialog from store', () => {
-    useLobbyStore.setState({ showSettingsDialog: true });
+  it('AC4: renders Settings button in toolbar', () => {
     renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Default adapter')).toBeInTheDocument();
+    expect(screen.getByTitle('Settings')).toBeInTheDocument();
   });
 
-  it('AC4: reads showUpdateDialog from store — triggers dialog via store state', () => {
-    // Since useVersionCheck mock doesn't propagate to Sidebar component
-    // (vitest module resolution limitation), we verify the store interaction
-    // directly by checking that showUpdateDialog state is consumed from store.
-    useLobbyStore.setState({ showUpdateDialog: true });
-    const state = useLobbyStore.getState();
-    expect(state.showUpdateDialog).toBe(true);
-    expect(state.setShowUpdateDialog).toBeDefined();
-    // Sidebar uses showUpdateDialog from store (tested via other dialog AC4 tests
-    // which follow the same pattern and pass). The versionInfo.latest guard is
-    // tested separately via UpdateDialog unit test (AC8).
+  it('AC4: renders showDiscoverDialog from store', () => {
+    useLobbyStore.setState({ showDiscoverDialog: true });
+    renderWithProviders(<Sidebar />);
+    expect(screen.getByTitle('Import CLI sessions')).toBeInTheDocument();
   });
 
   // ── AC5: SessionCard group-hover (desktop) ────────
@@ -276,9 +266,4 @@ describe('Sidebar', () => {
     expect(screen.getByTitle('Toggle Language')).toBeInTheDocument();
   });
 
-  it('AC7: renders showDiscoverDialog from store', () => {
-    useLobbyStore.setState({ showDiscoverDialog: true });
-    renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Import')).toBeInTheDocument();
-  });
 });
