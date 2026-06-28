@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { useLobbyStore } from '../stores/lobby-store';
 import { wsOpenPty, wsPtyInput, wsPtyResize } from '../hooks/useWebSocket';
+import { useI18nContext } from '../contexts/I18nContext';
 
 interface TerminalViewProps {
   sessionId: string;
@@ -27,8 +28,28 @@ function getTerminalTheme(): { background: string; foreground: string; cursor: s
   };
 }
 
+// Strip ANSI escape codes from terminal output
+function stripAnsi(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1B(?:\[[0-9;]*[a-zA-Z]|\][0-9;]*\x07|\([a-zA-Z]|[PX^_].*\x7F?)/g, '');
+}
+
 export default function TerminalView({ sessionId }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastCommandRef = useRef('');
+  const [copied, setCopied] = React.useState(false);
+  const { t } = useI18nContext();
+
+  const handleCopyLastCommand = useCallback(() => {
+    const text = lastCommandRef.current;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      // Clipboard write failed — silently ignore
+    });
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -74,6 +95,13 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
     const store = useLobbyStore.getState();
     store.registerPtyOutputListener(sessionId, (data: string) => {
       terminal.write(data);
+      // Track last command from pty output
+      const clean = stripAnsi(data).trim();
+      if (clean) {
+        const lines = clean.split('\n');
+        const last = lines[lines.length - 1].trim();
+        if (last) lastCommandRef.current = last;
+      }
     });
 
     const resizeObserver = new ResizeObserver(() => {
@@ -102,10 +130,19 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
   }, [sessionId]);
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 bg-[var(--color-terminal-bg)] overflow-hidden"
-      style={{ minHeight: 0 }}
-    />
+    <div className="flex-1 flex flex-col min-h-0 relative">
+      <div
+        ref={containerRef}
+        className="flex-1 bg-[var(--color-terminal-bg)] overflow-hidden"
+        style={{ minHeight: 0 }}
+      />
+      <button
+        onClick={handleCopyLastCommand}
+        disabled={!lastCommandRef.current}
+        className="md:hidden absolute bottom-2 right-2 px-3 py-1.5 rounded text-xs bg-[var(--color-surface-elevated)] text-on-surface border border-outline shadow-md hover:bg-[var(--color-sidebar-hover)] disabled:opacity-40 transition-colors z-10"
+      >
+        {copied ? t('common.copied') : t('common.copy')}
+      </button>
+    </div>
   );
 }
