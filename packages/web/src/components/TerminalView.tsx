@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -101,11 +101,38 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
     };
   }, [sessionId]);
 
+  const handleCopyLastCommand = useCallback(() => {
+    const cached = terminalCache.get(sessionId);
+    if (!cached?.terminal) return;
+    const buffer = cached.terminal.buffer.active;
+    for (let i = buffer.length - 1; i >= Math.max(0, buffer.length - 50); i--) {
+      const line = buffer.getLine(i);
+      if (line) {
+        const text = line.translateToString().trim();
+        if (text) {
+          navigator.clipboard.writeText(text).catch(() => {});
+          return;
+        }
+      }
+    }
+  }, [sessionId]);
+
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 bg-[var(--color-terminal-bg)] overflow-hidden"
-      style={{ minHeight: 0 }}
-    />
+    <div className="flex-1 relative bg-[var(--color-terminal-bg)]" style={{ minHeight: 0 }}>
+      <div
+        ref={containerRef}
+        className="absolute inset-0"
+      />
+      <button
+        onClick={handleCopyLastCommand}
+        className="md:hidden absolute top-2 right-2 z-10 px-2 py-1 rounded bg-surface-elevated border border-outline text-xs text-on-surface-secondary hover:text-on-surface shadow-sm transition-colors"
+        title="Copy last command"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      </button>
+    </div>
   );
 }
