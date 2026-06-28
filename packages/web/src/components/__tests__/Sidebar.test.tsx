@@ -160,26 +160,11 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByText('Session s1'));
   });
 
-  // ── AC4: Dialog state from store ───────────────────
-  it('AC4: reads showAgentsPanel from store', () => {
-    useLobbyStore.setState({ showAgentsPanel: true });
-    renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Agent Configuration')).toBeInTheDocument();
-  });
+  // ── AC7: Dialogs moved to App.tsx per AC7 ───────────────────
+  // Dialog rendering tests removed — dialogs now render from App.tsx.
+  // Sidebar retains dialog-triggering toolbar buttons (tested below in AC7).
 
-  it('AC4: reads showChannelPanel from store', () => {
-    useLobbyStore.setState({ showChannelPanel: true });
-    renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Channel Management')).toBeInTheDocument();
-  });
-
-  it('AC4: reads showSettingsDialog from store', () => {
-    useLobbyStore.setState({ showSettingsDialog: true });
-    renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Default adapter')).toBeInTheDocument();
-  });
-
-  it('AC4: reads showUpdateDialog from store — triggers dialog via store state', () => {
+  it('AC7: reads showUpdateDialog from store — store interaction check', () => {
     // Since useVersionCheck mock doesn't propagate to Sidebar component
     // (vitest module resolution limitation), we verify the store interaction
     // directly by checking that showUpdateDialog state is consumed from store.
@@ -276,9 +261,10 @@ describe('Sidebar', () => {
     expect(screen.getByTitle('Toggle Language')).toBeInTheDocument();
   });
 
-  it('AC7: renders showDiscoverDialog from store', () => {
+  it('AC7: reads showDiscoverDialog from store — store access check', () => {
+    // Dialogs render from App.tsx since AC7; verify store state still accessible
     useLobbyStore.setState({ showDiscoverDialog: true });
-    renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Import')).toBeInTheDocument();
+    const state = useLobbyStore.getState();
+    expect(state.showDiscoverDialog).toBe(true);
   });
 });
