@@ -39,6 +39,7 @@ export const enMessages = {
   'app.emptyStateTitle': 'Select a session or create a new one',
   'app.emptyStateHint': 'Click "+ Import" in the sidebar to get started',
   'app.sessionEndedHint': 'Session has ended. Create or import a session to continue.',
+  'app.mobileEmptyState': 'Tap the menu or Sessions tab to choose a conversation',
 
   'sidebar.importCliSessions': 'Import CLI sessions',
   'sidebar.empty': 'No sessions yet. Click "+ Import" to create one.',

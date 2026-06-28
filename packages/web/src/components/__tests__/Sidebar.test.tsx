@@ -164,19 +164,21 @@ describe('Sidebar', () => {
   it('AC4: reads showAgentsPanel from store', () => {
     useLobbyStore.setState({ showAgentsPanel: true });
     renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Agent Configuration')).toBeInTheDocument();
+    // Dialogs now render from App.tsx (AC7). Sidebar still reads store state
+    // and shows the Agents button trigger.
+    expect(screen.getByTitle('Agents')).toBeInTheDocument();
   });
 
   it('AC4: reads showChannelPanel from store', () => {
     useLobbyStore.setState({ showChannelPanel: true });
     renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Channel Management')).toBeInTheDocument();
+    expect(screen.getByTitle('IM Channels')).toBeInTheDocument();
   });
 
   it('AC4: reads showSettingsDialog from store', () => {
     useLobbyStore.setState({ showSettingsDialog: true });
     renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Default adapter')).toBeInTheDocument();
+    expect(screen.getByTitle('Settings')).toBeInTheDocument();
   });
 
   it('AC4: reads showUpdateDialog from store — triggers dialog via store state', () => {
@@ -276,9 +278,9 @@ describe('Sidebar', () => {
     expect(screen.getByTitle('Toggle Language')).toBeInTheDocument();
   });
 
-  it('AC7: renders showDiscoverDialog from store', () => {
-    useLobbyStore.setState({ showDiscoverDialog: true });
+  it('AC7: renders import button (discover dialog now in App.tsx)', () => {
     renderWithProviders(<Sidebar />);
-    expect(screen.getByText('Import')).toBeInTheDocument();
+    // Discover dialog renders from App.tsx now. Sidebar shows the import button.
+    expect(screen.getByTitle('Import CLI sessions')).toBeInTheDocument();
   });
 });

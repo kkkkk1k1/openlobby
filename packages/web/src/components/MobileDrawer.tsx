@@ -94,6 +94,7 @@ function MobileDrawerInner({ open, onClose, children }: MobileDrawerProps) {
       <div
         ref={panelRef}
         role="dialog"
+        id="mobile-drawer"
         aria-modal="true"
         aria-label="Session navigation"
         className={`absolute top-0 left-0 h-full w-[85vw] max-w-[320px] z-10 bg-surface-secondary border-r border-outline transition-transform duration-200 ${
