@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -29,6 +29,17 @@ function getTerminalTheme(): { background: string; foreground: string; cursor: s
 
 export default function TerminalView({ sessionId }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const currentInputRef = useRef('');
+  const [lastCommand, setLastCommand] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    if (!lastCommand) return;
+    navigator.clipboard.writeText(lastCommand).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [lastCommand]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -68,6 +79,17 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
     });
 
     const inputDisposable = terminal.onData((data) => {
+      // Track commands for copy-last-command button
+      if (data === '\r' || data === '\n') {
+        const cmd = currentInputRef.current.trim();
+        if (cmd) setLastCommand(cmd);
+        currentInputRef.current = '';
+      } else if (data === '\x7f') {
+        // Backspace
+        currentInputRef.current = currentInputRef.current.slice(0, -1);
+      } else if (data.length === 1 && data.charCodeAt(0) >= 0x20) {
+        currentInputRef.current += data;
+      }
       wsPtyInput(sessionId, data);
     });
 
@@ -102,10 +124,20 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
   }, [sessionId]);
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 bg-[var(--color-terminal-bg)] overflow-hidden"
-      style={{ minHeight: 0 }}
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="flex-1 bg-[var(--color-terminal-bg)] overflow-hidden"
+        style={{ minHeight: 0 }}
+      />
+      {lastCommand && (
+        <button
+          onClick={handleCopy}
+          className="md:hidden fixed bottom-[calc(var(--mobile-nav-height)+env(safe-area-inset-bottom,0px)+8px)] right-3 z-30 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-elevated text-on-surface border border-outline shadow-md transition-colors hover:bg-surface-secondary active:scale-95"
+        >
+          {copied ? '✓ Copied' : '⎘ Copy'}
+        </button>
+      )}
+    </>
   );
 }
