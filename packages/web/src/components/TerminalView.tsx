@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -29,6 +29,15 @@ function getTerminalTheme(): { background: string; foreground: string; cursor: s
 
 export default function TerminalView({ sessionId }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastCommandRef = useRef('');
+  const inputBufferRef = useRef('');
+
+  const handleCopyLastCommand = useCallback(() => {
+    const cmd = lastCommandRef.current;
+    if (cmd) {
+      navigator.clipboard.writeText(cmd).catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -68,6 +77,16 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
     });
 
     const inputDisposable = terminal.onData((data) => {
+      // Track last command for Copy button
+      if (data === '\r') {
+        lastCommandRef.current = inputBufferRef.current;
+        inputBufferRef.current = '';
+      } else if (data === '\x7f' || data === '\b') {
+        inputBufferRef.current = inputBufferRef.current.slice(0, -1);
+      } else if (data.length === 1 && data.charCodeAt(0) >= 32) {
+        inputBufferRef.current += data;
+      }
+
       wsPtyInput(sessionId, data);
     });
 
@@ -102,10 +121,19 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
   }, [sessionId]);
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 bg-[var(--color-terminal-bg)] overflow-hidden"
-      style={{ minHeight: 0 }}
-    />
+    <div className="flex-1 relative flex flex-col min-h-0">
+      <div
+        ref={containerRef}
+        className="flex-1 bg-[var(--color-terminal-bg)] overflow-hidden"
+        style={{ minHeight: 0 }}
+      />
+      <button
+        onClick={handleCopyLastCommand}
+        className="md:hidden absolute top-2 right-2 z-10 px-2 py-1 text-xs rounded bg-surface-elevated border border-outline text-on-surface-muted hover:text-on-surface transition-colors"
+        title="Copy last command"
+      >
+        Copy
+      </button>
+    </div>
   );
 }
