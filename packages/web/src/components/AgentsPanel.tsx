@@ -56,7 +56,7 @@ export default function AgentsPanel({ onClose, highlightId }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-gray-900 rounded-xl p-6 w-full max-w-2xl border border-gray-700 max-h-[85vh] flex flex-col"
+        className="w-[calc(100vw-32px)] md:w-auto mx-4 md:mx-0 bg-gray-900 rounded-xl p-6 max-w-2xl border border-gray-700 max-h-[85dvh] overflow-y-auto flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">

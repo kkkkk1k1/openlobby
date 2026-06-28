@@ -62,7 +62,7 @@ export default function GlobalSettingsDialog({ onClose }: Props) {
   return (
     <div className="fixed inset-0 bg-[var(--color-surface-overlay)] flex items-center justify-center z-50" onClick={onClose}>
       <div
-        className="bg-surface-secondary rounded-xl w-full max-w-md border border-outline max-h-[80vh] min-h-0 overflow-hidden flex flex-col"
+        className="w-[calc(100vw-32px)] md:w-auto mx-4 md:mx-0 bg-surface-secondary rounded-xl max-w-md border border-outline max-h-[80dvh] min-h-0 overflow-y-auto flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="shrink-0 px-6 pt-6 pb-4 border-b border-outline bg-surface-secondary">
