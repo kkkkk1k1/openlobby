@@ -1,15 +1,23 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useWebSocketInit, wsSendMessage, wsRespondControl, wsConfigureSession, wsRecoverSession } from './hooks/useWebSocket';
 import { useLobbyStore } from './stores/lobby-store';
 import { useTheme } from './hooks/useTheme';
 import { ThemeContext } from './contexts/ThemeContext';
 import { I18nContext, useI18nContext } from './contexts/I18nContext';
 import { useI18n } from './hooks/useI18n';
+import { useVersionCheck } from './hooks/useVersionCheck';
 import Sidebar from './components/Sidebar';
 import RoomHeader from './components/RoomHeader';
 import MessageList from './components/MessageList';
 import MessageInput from './components/MessageInput';
 import TerminalView from './components/TerminalView';
+import MobileDrawer from './components/MobileDrawer';
+import MobileNav from './components/MobileNav';
+import DiscoverDialog from './components/DiscoverDialog';
+import ChannelManagePanel from './components/ChannelManagePanel';
+import AgentsPanel from './components/AgentsPanel';
+import GlobalSettingsDialog from './components/GlobalSettingsDialog';
+import { UpdateDialog } from './components/UpdateDialog';
 
 const DEV_BACKEND_HOST =
   window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -40,6 +48,28 @@ export default function App() {
   const viewMode = useLobbyStore((s) =>
     s.activeSessionId ? (s.viewModeBySession[s.activeSessionId] ?? 'im') : 'im',
   );
+
+  const versionInfo = useVersionCheck();
+  const drawerOpen = useLobbyStore((s) => s.drawerOpen);
+  const setDrawerOpen = useLobbyStore((s) => s.setDrawerOpen);
+  const showAgentsPanel = useLobbyStore((s) => s.showAgentsPanel);
+  const setShowAgentsPanel = useLobbyStore((s) => s.setShowAgentsPanel);
+  const showChannelPanel = useLobbyStore((s) => s.showChannelPanel);
+  const setShowChannelPanel = useLobbyStore((s) => s.setShowChannelPanel);
+  const showSettingsDialog = useLobbyStore((s) => s.showSettingsDialog);
+  const setShowSettingsDialog = useLobbyStore((s) => s.setShowSettingsDialog);
+  const showUpdateDialog = useLobbyStore((s) => s.showUpdateDialog);
+  const setShowUpdateDialog = useLobbyStore((s) => s.setShowUpdateDialog);
+  const showDiscoverDialog = useLobbyStore((s) => s.showDiscoverDialog);
+  const setShowDiscoverDialog = useLobbyStore((s) => s.setShowDiscoverDialog);
+  const agentsPanelRequest = useLobbyStore((s) => s.agentsPanelRequest);
+  const dismissAgentsPanel = useLobbyStore((s) => s.dismissAgentsPanel);
+
+  useEffect(() => {
+    if (agentsPanelRequest) {
+      setShowAgentsPanel(true);
+    }
+  }, [agentsPanelRequest, setShowAgentsPanel]);
 
   const handleChoiceSelect = useCallback(
     (label: string) => {
@@ -102,6 +132,32 @@ export default function App() {
             )}
           </main>
         </div>
+
+        {showDiscoverDialog && (
+          <DiscoverDialog onClose={() => setShowDiscoverDialog(false)} />
+        )}
+        {showChannelPanel && (
+          <ChannelManagePanel onClose={() => setShowChannelPanel(false)} />
+        )}
+        {showAgentsPanel && (
+          <AgentsPanel
+            highlightId={agentsPanelRequest?.highlightId}
+            onClose={() => {
+              setShowAgentsPanel(false);
+              dismissAgentsPanel();
+            }}
+          />
+        )}
+        {showSettingsDialog && (
+          <GlobalSettingsDialog onClose={() => setShowSettingsDialog(false)} />
+        )}
+        {showUpdateDialog && versionInfo.latest && (
+          <UpdateDialog
+            latestVersion={versionInfo.latest}
+            installMode={versionInfo.installMode}
+            onClose={() => setShowUpdateDialog(false)}
+          />
+        )}
       </I18nContext.Provider>
     </ThemeContext.Provider>
   );
